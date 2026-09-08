@@ -1,88 +1,31 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D GLB Viewer</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { width: 100vw; height: 100vh; overflow: hidden; background-color: #1a1a1a; }
-        #canvas-container { width: 100%; height: 100%; }
-    </style>
-    <!-- 安定したバージョンの Three.js 関連ライブラリ -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <meta charset="UTF-8">
+  <!-- スマホの画面サイズに最適化 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Step 1: 背景VR表示テスト</title>
+  
+  <!-- 1. WebVR用ライブラリ（A-Frame）の読み込み -->
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
 </head>
 <body>
+  <!-- VR空間（シーン）の定義 -->
+  <a-scene vr-mode-ui="enabled: true">
+    
+    <!-- 2. ライト（照明）の設定：空間と背景をきれいに発色させるため -->
+    <!-- 全体を平均的に照らす光 -->
+    <a-entity light="type: ambient; color: #FFFFFF; intensity: 0.7"></a-entity>
+    <!-- 斜め上からの光（立体感を出す） -->
+    <a-entity light="type: directional; color: #FFFFFF; intensity: 0.5" position="-1 4 2"></a-entity>
 
-    <div id="canvas-container"></div>
+    <!-- 3. 背景モデル（bg.glb）の呼び出し -->
+    <!-- 位置(position)や向き(rotation)は必要に応じて調整してください -->
+    <a-gltf-model src="bg.glb" position="0 0 0" rotation="0 0 0"></a-gltf-model>
 
-    <script>
-        const container = document.getElementById('canvas-container');
-        const scene = new THREE.Scene();
+    <!-- 4. 空の色（背景モデルの外側の色） -->
+    <a-sky color="#87CEEB"></a-sky>
 
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 1, 5);
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 過剰な解像度によるメモリ暴走を防止
-        container.appendChild(renderer.domElement);
-
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
-        scene.add(ambientLight);
-
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
-        directionalLight.position.set(5, 10, 7.5);
-        scene.add(directionalLight);
-
-        const loader = new THREE.GLTFLoader();
-        loader.load(
-            './bg.glb',
-            function (gltf) {
-                const model = gltf.scene;
-                
-                // 自動で大きさと位置を調整
-                const box = new THREE.Box3().setFromObject(model);
-                const center = box.getCenter(new THREE.Vector3());
-                const size = box.getSize(new THREE.Vector3());
-
-                model.position.sub(center);
-                const maxDim = Math.max(size.x, size.y, size.z);
-                if (maxDim > 0) {
-                    camera.position.z = maxDim * 2.5;
-                }
-                
-                scene.add(model);
-                console.log('読み込み成功');
-            },
-            undefined,
-            function (error) {
-                console.error('読み込み失敗:', error);
-            }
-        );
-
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update();
-            renderer.render(scene, camera);
-        }
-        animate();
-
-        // リサイズ処理のリバース・負荷軽減（デバウンス処理）
-        let resizeTimeout;
-        window.addEventListener('resize', () => {
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            }, 100);
-        });
-    </script>
+  </a-scene>
 </body>
 </html>
