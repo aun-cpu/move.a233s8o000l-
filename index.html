@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>3D GLB Viewer - D-Pad Control</title>
+    <title>3D GLB Viewer - D-Pad Fixed</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { width: 100vw; height: 100vh; overflow: hidden; background-color: #1a1a1a; touch-action: none; }
         #canvas-container { width: 100%; height: 100%; position: absolute; top:0; left:0; z-index: 1; }
 
-        /* 視点操作（カメラ制御）専用エリア（画面右側60%） */
+        /* 視点操作エリア */
         #camera-touch-zone {
             position: absolute;
             top: 0;
@@ -20,7 +20,7 @@
             touch-action: none;
         }
 
-        /* 左下に配置する方向キー（D-Pad）コンテナ */
+        /* 左下配置のD-Padコンテナ */
         #dpad-container {
             position: absolute;
             bottom: 30px;
@@ -54,12 +54,10 @@
             transition: background 0.1s;
         }
 
-        /* ボタン押下時の視覚効果 */
         .btn-arrow:active, .btn-arrow.active {
             background: rgba(255, 255, 255, 0.6);
         }
 
-        /* 上下左右の個別配置 */
         #btn-up    { top: 0; left: 52px; }
         #btn-down  { bottom: 0; left: 52px; }
         #btn-left  { top: 52px; left: 0; }
@@ -92,11 +90,10 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        // OrbitControls を右側領域(#camera-touch-zone)だけにバインド
         const touchZone = document.getElementById('camera-touch-zone');
         const controls = new THREE.OrbitControls(camera, touchZone);
         controls.enableDamping = true;
-        controls.enableZoom = false; // ズーム機能オフ
+        controls.enableZoom = false;
 
         scene.add(new THREE.AmbientLight(0xffffff, 1.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 2);
@@ -195,7 +192,7 @@
         }
 
         // ============================================================
-        // 矢印ボタン（方向キー）の入力処理
+        // 矢印ボタン（方向キー）のイベント補正
         // ============================================================
         const keyState = {
             up: false,
@@ -208,8 +205,11 @@
             const btn = document.getElementById(elementId);
 
             const startPress = (e) => {
+                // カメラ制御ライブラリへ指イベントが届くのを完全に遮断
                 e.preventDefault();
                 e.stopPropagation();
+                if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+
                 keyState[direction] = true;
                 btn.classList.add('active');
             };
@@ -217,14 +217,21 @@
             const endPress = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+
                 keyState[direction] = false;
                 btn.classList.remove('active');
             };
 
-            btn.addEventListener('pointerdown', startPress);
-            btn.addEventListener('pointerup', endPress);
-            btn.addEventListener('pointercancel', endPress);
-            btn.addEventListener('pointerleave', endPress);
+            // 各種ポインター/タッチイベントを包括的にガード
+            btn.addEventListener('pointerdown', startPress, { passive: false });
+            btn.addEventListener('pointerup', endPress, { passive: false });
+            btn.addEventListener('pointercancel', endPress, { passive: false });
+            btn.addEventListener('pointerleave', endPress, { passive: false });
+
+            btn.addEventListener('touchstart', startPress, { passive: false });
+            btn.addEventListener('touchend', endPress, { passive: false });
+            btn.addEventListener('touchcancel', endPress, { passive: false });
         }
 
         bindButtonEvents('btn-up', 'up');
@@ -232,7 +239,7 @@
         bindButtonEvents('btn-left', 'left');
         bindButtonEvents('btn-right', 'right');
 
-        // キーボード（PC用）の互換処理
+        // キーボード操作対応
         window.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowUp' || e.key === 'w') keyState.up = true;
             if (e.key === 'ArrowDown' || e.key === 's') keyState.down = true;
@@ -248,7 +255,7 @@
         });
 
         // ============================================================
-        // モデルの移動・回転計算
+        // 移動・回転処理
         // ============================================================
         function updateModelMovement(delta) {
             if (!targetModel) return;
@@ -258,8 +265,8 @@
 
             if (keyState.right) inputX += 1;
             if (keyState.left)  inputX -= 1;
-            if (keyState.up)    inputY -= 1; // 画面上方向（前進）
-            if (keyState.down)  inputY += 1; // 画面下方向（後退）
+            if (keyState.up)    inputY -= 1;
+            if (keyState.down)  inputY += 1;
 
             const isMoving = inputX !== 0 || inputY !== 0;
 
