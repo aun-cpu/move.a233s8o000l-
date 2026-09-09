@@ -27,6 +27,9 @@
 
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
+        
+        // --- ズーム（拡大・縮小）を禁止する設定 ---
+        controls.enableZoom = false;
 
         scene.add(new THREE.AmbientLight(0xffffff, 1.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 2);
@@ -34,7 +37,7 @@
         scene.add(dirLight);
 
         // 初期カメラ位置のオフセット (x: 0, y: 高さ, z: 後方距離)
-        const cameraOffset = new THREE.Vector3(0, 4, 2); 
+        const cameraOffset = new THREE.Vector3(0, 4, 2.205); 
 
         let targetModel = null;
         let mixer = null;
@@ -46,6 +49,9 @@
             './ct1.glb',
             function (gltf) {
                 targetModel = gltf.scene;
+
+                // --- ct1 を反対（180度）に向かせる設定 ---
+                targetModel.rotation.y = Math.PI;
 
                 scene.add(targetModel);
 
