@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D GLB Viewer - Target Follow with Background</title>
+    <title>3D GLB Viewer - Wireframe Background</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { width: 100vw; height: 100vh; overflow: hidden; background-color: #1a1a1a; }
@@ -49,13 +49,27 @@
 
         const loader = new THREE.GLTFLoader();
 
-        // 1. 背景モデル (bg.glb) の読み込み
+        // 1. 背景モデル (bg.glb) の読み込み＆ワイヤーフレーム化
         loader.load(
             './bg.glb',
             function (gltf) {
                 bgModel = gltf.scene;
+
+                // モデル全体の全メッシュを走査してワイヤーフレーム表示を有効化
+                bgModel.traverse((child) => {
+                    if (child.isMesh) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach((mat) => {
+                                mat.wireframe = true;
+                            });
+                        } else if (child.material) {
+                            child.material.wireframe = true;
+                        }
+                    }
+                });
+
                 scene.add(bgModel);
-                console.log('bg.glb の読み込みと配置に成功しました');
+                console.log('bg.glb の読み込みとワイヤーフレーム化に成功しました');
             },
             undefined,
             function (error) {
