@@ -3,17 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D GLB Viewer - Joystick & Free Camera Control</title>
+    <title>3D GLB Viewer - Dynamic Joystick Control</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { width: 100vw; height: 100vh; overflow: hidden; background-color: #1a1a1a; touch-action: none; }
         #canvas-container { width: 100%; height: 100%; }
 
-        /* ジョイスティックUIのスタイル */
+        /* 動的ジョイスティックUI（初期状態は非表示） */
         #joystick-container {
             position: absolute;
-            bottom: 30px;
-            left: 30px;
             width: 120px;
             height: 120px;
             background: rgba(255, 255, 255, 0.15);
@@ -22,6 +20,9 @@
             touch-action: none;
             user-select: none;
             z-index: 100;
+            display: none; /* タッチ時のみ表示 */
+            pointer-events: none; /* マウス/タッチイベントを妨げない */
+            transform: translate(-50%, -50%); /* タッチ位置を中心にする */
         }
 
         #joystick-stick {
@@ -44,7 +45,7 @@
 <body>
     <div id="canvas-container"></div>
 
-    <!-- 左下のバーチャルジョイスティックUI -->
+    <!-- 画面操作時に出現する動的ジョイスティックUI -->
     <div id="joystick-container">
         <div id="joystick-stick"></div>
     </div>
@@ -60,19 +61,14 @@
 
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        
-        // --- ズーム（拡大・縮小）を禁止する設定 ---
-        controls.enableZoom = false;
+        controls.enableZoom = false; // ズーム禁止
 
         scene.add(new THREE.AmbientLight(0xffffff, 1.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 2);
         dirLight.position.set(5, 10, 7.5);
         scene.add(dirLight);
 
-        // --- 回転軸（注視点）の高さオフセット ---
         const targetHeightOffset = 1.5;
-
-        // --- 初期カメラ位置のオフセット ---
         const cameraOffset = new THREE.Vector3(0, 0.4, -1.6); 
 
         let targetModel = null;
@@ -82,74 +78,54 @@
         let currentAction = null;
         const clock = new THREE.Clock();
 
-        // 移動・回転設定
-        const moveSpeed = 4.0; // 移動速度
-        const rotationSpeed = 10.0; // 旋回速度
+        const moveSpeed = 4.0;
+        const rotationSpeed = 10.0;
 
         const loader = new THREE.GLTFLoader();
 
-        // 1. 背景モデル (bg.glb) の読み込み＆ワイヤーフレーム化＆スケール拡大
+        // 1. 背景モデル (bg.glb)
         loader.load(
             './bg.glb',
             function (gltf) {
                 bgModel = gltf.scene;
-
-                // --- bg.glb のサイズを2倍にする設定 ---
                 bgModel.scale.set(2, 2, 2);
-
-                // モデル全体の全メッシュを走査してワイヤーフレーム表示を有効化
                 bgModel.traverse((child) => {
                     if (child.isMesh) {
                         if (Array.isArray(child.material)) {
-                            child.material.forEach((mat) => {
-                                mat.wireframe = true;
-                            });
+                            child.material.forEach((mat) => { mat.wireframe = true; });
                         } else if (child.material) {
                             child.material.wireframe = true;
                         }
                     }
                 });
-
                 scene.add(bgModel);
             },
             undefined,
-            function (error) {
-                console.error('bg.glb の読み込みエラー:', error);
-            }
+            function (error) { console.error('bg.glb の読み込みエラー:', error); }
         );
 
-        // 2. ターゲットモデル (ct1.glb) の読み込み
+        // 2. ターゲットモデル (ct1.glb)
         loader.load(
             './ct1.glb',
             function (gltf) {
                 targetModel = gltf.scene;
-
-                // --- ct1 の向きを前後逆（180度反転）にする設定 ---
                 targetModel.rotation.y = Math.PI;
-
                 scene.add(targetModel);
 
-                // アニメーション設定（複数アニメーション対応）
                 if (gltf.animations && gltf.animations.length > 0) {
                     mixer = new THREE.AnimationMixer(targetModel);
                     gltf.animations.forEach((clip) => {
                         actions.push(mixer.clipAction(clip));
                     });
-                    
-                    // 初期状態のアニメーションを再生
                     setAction(0);
                 }
 
-                // 読み込み時のみ、カメラの初期位置を設定
                 initCameraPosition();
             },
             undefined,
-            function (error) {
-                console.error('ct1.glb の読み込みエラー:', error);
-            }
+            function (error) { console.error('ct1.glb の読み込みエラー:', error); }
         );
 
-        // アニメーション切り替え関数
         function setAction(index) {
             if (!mixer || !actions[index]) return;
             const nextAction = actions[index];
@@ -160,35 +136,23 @@
             }
         }
 
-        // 読み込み時だけに呼ぶ「初期カメラ位置設定」
         function initCameraPosition() {
             if (!targetModel) return;
-
             const modelPosition = new THREE.Vector3();
             targetModel.getWorldPosition(modelPosition);
-
-            // 回転軸のY座標（高さ）を上げる
             const targetPosition = modelPosition.clone().add(new THREE.Vector3(0, targetHeightOffset, 0));
-
             const offset = cameraOffset.clone().applyQuaternion(targetModel.quaternion);
             
-            // 回転軸（targetPosition）基準でカメラ位置を設定
             camera.position.copy(targetPosition).add(offset);
             controls.target.copy(targetPosition);
             controls.update();
         }
 
-        // 毎フレーム実行する「モデル移動への追従（位置ズレのみ補正）」
         function followModelPosition() {
             if (!targetModel) return;
-
             const modelPosition = new THREE.Vector3();
             targetModel.getWorldPosition(modelPosition);
-
-            // 移動後の回転軸位置を計算
             const targetPosition = modelPosition.clone().add(new THREE.Vector3(0, targetHeightOffset, 0));
-
-            // 前フレームからの移動差分を計算してカメラと注視点をスライド
             const deltaPosition = targetPosition.clone().sub(controls.target);
 
             controls.target.add(deltaPosition);
@@ -196,27 +160,39 @@
         }
 
         // ============================================================
-        // ジョイスティックの処理
+        // 動的ジョイスティック処理（画面左1/3領域）
         // ============================================================
         const joystickContainer = document.getElementById('joystick-container');
         const joystickStick = document.getElementById('joystick-stick');
         
         let joystickInput = { x: 0, y: 0 };
         let activeTouchId = null;
+        let joystickCenter = { x: 0, y: 0 };
+        const maxRadius = 40; // 可動半径（px）
 
-        const maxRadius = 40; // スティックの可動半径（px）
-
-        function handleJoystickStart(e) {
-            // スティック操作領域内ではOrbitControls（視点回転）にイベントを渡さない
-            e.stopPropagation();
-
+        function handlePointerDown(e) {
             if (activeTouchId !== null) return;
-            const touch = e.changedTouches ? e.changedTouches[0] : e;
-            activeTouchId = touch.identifier !== undefined ? touch.identifier : 'mouse';
-            updateJoystick(touch);
+
+            const clientX = e.clientX ?? (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY ?? (e.touches && e.touches[0].clientY);
+
+            // 画面左側 1/3 (33.3%) の領域内であるか判定
+            if (clientX <= window.innerWidth / 3) {
+                activeTouchId = e.pointerId ?? (e.changedTouches ? e.changedTouches[0].identifier : 'mouse');
+
+                // タッチした位置を中心にジョイスティックを表示
+                joystickCenter.x = clientX;
+                joystickCenter.y = clientY;
+
+                joystickContainer.style.left = `${clientX}px`;
+                joystickContainer.style.top = `${clientY}px`;
+                joystickContainer.style.display = 'block';
+
+                updateJoystick(clientX, clientY);
+            }
         }
 
-        function handleJoystickMove(e) {
+        function handlePointerMove(e) {
             if (activeTouchId === null) return;
 
             let touch = null;
@@ -227,35 +203,38 @@
                         break;
                     }
                 }
-            } else {
+            } else if (e.pointerId === activeTouchId || activeTouchId === 'mouse') {
                 touch = e;
             }
 
-            if (touch) updateJoystick(touch);
+            if (touch) {
+                updateJoystick(touch.clientX, touch.clientY);
+            }
         }
 
-        function handleJoystickEnd(e) {
+        function handlePointerUp(e) {
             if (activeTouchId === null) return;
 
+            let shouldReset = false;
             if (e.changedTouches) {
                 for (let i = 0; i < e.changedTouches.length; i++) {
                     if (e.changedTouches[i].identifier === activeTouchId) {
-                        resetJoystick();
+                        shouldReset = true;
                         break;
                     }
                 }
             } else {
+                shouldReset = true;
+            }
+
+            if (shouldReset) {
                 resetJoystick();
             }
         }
 
-        function updateJoystick(touch) {
-            const rect = joystickContainer.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-
-            let dx = touch.clientX - centerX;
-            let dy = touch.clientY - centerY;
+        function updateJoystick(clientX, clientY) {
+            let dx = clientX - joystickCenter.x;
+            let dy = clientY - joystickCenter.y;
             const distance = Math.hypot(dx, dy);
 
             if (distance > maxRadius) {
@@ -265,7 +244,6 @@
 
             joystickStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
 
-            // 正規化された入力値（-1.0 ～ 1.0）
             joystickInput.x = dx / maxRadius;
             joystickInput.y = dy / maxRadius;
         }
@@ -275,29 +253,14 @@
             joystickInput.x = 0;
             joystickInput.y = 0;
             joystickStick.style.transform = 'translate(-50%, -50%)';
+            joystickContainer.style.display = 'none'; // 手を離したら消去
         }
 
-        // ジョイスティックエリアでのイベントバブリング（伝播）をブロックする関数
-        function preventCameraControl(e) {
-            e.stopPropagation();
-        }
-
-        // ジョイスティック領域のイベント登録
-        joystickContainer.addEventListener('touchstart', handleJoystickStart, { passive: false });
-        joystickContainer.addEventListener('touchmove', preventCameraControl, { passive: false });
-        joystickContainer.addEventListener('touchend', preventCameraControl);
-
-        joystickContainer.addEventListener('mousedown', handleJoystickStart);
-        joystickContainer.addEventListener('mousemove', preventCameraControl);
-        joystickContainer.addEventListener('mouseup', preventCameraControl);
-
-        // グローバル（画面全体）での追達イベント処理
-        window.addEventListener('touchmove', handleJoystickMove, { passive: false });
-        window.addEventListener('touchend', handleJoystickEnd);
-        window.addEventListener('touchcancel', handleJoystickEnd);
-
-        window.addEventListener('mousemove', handleJoystickMove);
-        window.addEventListener('mouseup', handleJoystickEnd);
+        // イベント登録（stopPropagation は使用せずバブリングを邪魔しない）
+        window.addEventListener('pointerdown', handlePointerDown);
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+        window.addEventListener('pointercancel', handlePointerUp);
 
         // ============================================================
         // モデルの移動・回転ロジック
@@ -308,12 +271,10 @@
             const isMoving = Math.abs(joystickInput.x) > 0.05 || Math.abs(joystickInput.y) > 0.05;
 
             if (isMoving) {
-                // アニメーションを移動用（インデックス1がある場合）へ切り替え
                 if (actions.length > 1) {
                     setAction(1);
                 }
 
-                // カメラの水平向き（Y軸回転）を取得
                 const cameraForward = new THREE.Vector3();
                 camera.getWorldDirection(cameraForward);
                 cameraForward.y = 0;
@@ -322,25 +283,20 @@
                 const cameraRight = new THREE.Vector3();
                 cameraRight.crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
 
-                // ジョイスティック入力からカメラ基準の移動方向ベクトルを計算
-                // (joystickInput.y < 0 で前方へ移動)
                 const moveDirection = new THREE.Vector3()
                     .addScaledVector(cameraRight, joystickInput.x)
                     .addScaledVector(cameraForward, -joystickInput.y)
                     .normalize();
 
-                // 入力強度に応じた速度でポジションを更新
                 const inputLength = Math.min(1.0, Math.hypot(joystickInput.x, joystickInput.y));
                 targetModel.position.addScaledVector(moveDirection, moveSpeed * inputLength * delta);
 
-                // 進行方向へのスムース旋回（Quaternion補間）
                 const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
                 const targetQuaternion = new THREE.Quaternion();
                 targetQuaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle);
                 targetModel.quaternion.slerp(targetQuaternion, rotationSpeed * delta);
 
             } else {
-                // 停止時は待機アニメーション（インデックス0）に戻す
                 if (actions.length > 0) {
                     setAction(0);
                 }
@@ -355,14 +311,12 @@
 
             const delta = clock.getDelta();
 
-            // ジョイスティックによる移動と旋回
             updateModelMovement(delta);
 
             if (mixer) {
                 mixer.update(delta);
             }
 
-            // モデルが動いた場合、回転軸を上げた状態を維持してカメラが追従
             if (targetModel) {
                 followModelPosition();
             }
