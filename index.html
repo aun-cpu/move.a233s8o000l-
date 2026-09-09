@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D GLB Viewer - Target Follow</title>
+    <title>3D GLB Viewer - Target Follow with Background</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { width: 100vw; height: 100vh; overflow: hidden; background-color: #1a1a1a; }
@@ -40,16 +40,30 @@
         const targetHeightOffset = 1.5;
 
         // --- 初期カメラ位置のオフセット ---
-        // 1. Z方向の符号をマイナスにし、モデルの後ろ側へ配置
-        // 2. Y（高さ）を低く、Z（後方距離）を伸ばすことで総距離を保ちつつ前方を向く角度に調整
         const cameraOffset = new THREE.Vector3(0, 0.4, -1.6); 
 
         let targetModel = null;
+        let bgModel = null;
         let mixer = null;
         const clock = new THREE.Clock();
 
         const loader = new THREE.GLTFLoader();
 
+        // 1. 背景モデル (bg.glb) の読み込み
+        loader.load(
+            './bg.glb',
+            function (gltf) {
+                bgModel = gltf.scene;
+                scene.add(bgModel);
+                console.log('bg.glb の読み込みと配置に成功しました');
+            },
+            undefined,
+            function (error) {
+                console.error('bg.glb の読み込みエラー:', error);
+            }
+        );
+
+        // 2. ターゲットモデル (ct1.glb) の読み込み
         loader.load(
             './ct1.glb',
             function (gltf) {
@@ -77,7 +91,7 @@
             }
         );
 
-        // 1. 読み込み時だけに呼ぶ「初期カメラ位置設定」
+        // 読み込み時だけに呼ぶ「初期カメラ位置設定」
         function initCameraPosition() {
             if (!targetModel) return;
 
@@ -95,7 +109,7 @@
             controls.update();
         }
 
-        // 2. 毎フレーム実行する「モデル移動への追従（位置ズレのみ補正）」
+        // 毎フレーム実行する「モデル移動への追従（位置ズレのみ補正）」
         function followModelPosition() {
             if (!targetModel) return;
 
