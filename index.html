@@ -280,7 +280,6 @@
 
         let swMixer = null;
 
-        // idle / dash を名前で保持
         let actions = {};
 
         let currentAction = null;
@@ -289,16 +288,28 @@
             new THREE.Clock();
 
         // ============================================================
-        // 武器アタッチ設定
+        // 武器アタッチ
         // ============================================================
 
         let rightDummyBone = null;
 
         let weaponGripBone = null;
 
-        let weaponAttachment = null;
-
         let weaponAttached = false;
+
+        /*
+         * sw.glb の「持ち手」が
+         * sw.glb のルートからどの位置・向きにあるか
+         */
+        const weaponGripLocalMatrix =
+            new THREE.Matrix4();
+
+        /*
+         * 持ち手の位置を右ダミーに合わせるための
+         * 武器ルートのローカル行列
+         */
+        const weaponRootOffsetMatrix =
+            new THREE.Matrix4();
 
         // ============================================================
         // 移動・カメラ設定
@@ -426,8 +437,7 @@
                     Math.PI;
 
                 // ====================================================
-                // ct1.glb
-                // 元の色を維持し、ごく僅かな光沢だけを追加
+                // ct1.glb のマテリアル
                 // ====================================================
 
                 targetModel.traverse(
@@ -482,6 +492,31 @@
                 );
 
                 scene.add(targetModel);
+
+                // ====================================================
+                // ボーン一覧を確認
+                // ====================================================
+
+                const boneNames = [];
+
+                targetModel.traverse(
+                    (child) => {
+
+                        if (child.isBone) {
+
+                            boneNames.push(
+                                child.name
+                            );
+
+                        }
+
+                    }
+                );
+
+                console.log(
+                    'ct1.glb ボーン一覧:',
+                    boneNames
+                );
 
                 // ====================================================
                 // 「右ダミー」ボーンを探す
@@ -579,15 +614,7 @@
 
                 }
 
-                // ====================================================
-                // カメラ
-                // ====================================================
-
                 updateCameraPosition();
-
-                // ====================================================
-                // sw.glb が先に読み込まれていた場合
-                // ====================================================
 
                 tryAttachWeapon();
 
@@ -621,6 +648,31 @@
 
                 console.log(
                     'sw.glb 読み込み完了'
+                );
+
+                // ====================================================
+                // ボーン一覧を確認
+                // ====================================================
+
+                const weaponBoneNames = [];
+
+                swModel.traverse(
+                    (child) => {
+
+                        if (child.isBone) {
+
+                            weaponBoneNames.push(
+                                child.name
+                            );
+
+                        }
+
+                    }
+                );
+
+                console.log(
+                    'sw.glb ボーン一覧:',
+                    weaponBoneNames
                 );
 
                 // ====================================================
@@ -658,8 +710,18 @@
                 }
 
                 // ====================================================
-                // sw.glb にアニメーションが存在する場合
-                // 武器側のアニメーションは再生しない
+                // 武器を一旦 scene に追加
+                //
+                // 親子関係を直接変更せず、
+                // 毎フレームワールド行列を同期する
+                // ====================================================
+
+                scene.add(
+                    swModel
+                );
+
+                // ====================================================
+                // sw.glb のアニメーションは使用しない
                 // ====================================================
 
                 if (
@@ -696,7 +758,7 @@
         );
 
         // ============================================================
-        // sw.glb を右ダミーへ取り付ける
+        // 武器アタッチ初期化
         // ============================================================
 
         function tryAttachWeapon() {
@@ -721,7 +783,7 @@
             }
 
             // ========================================================
-            // ワールド行列を最新状態にする
+            // すべてのワールド行列を更新
             // ========================================================
 
             scene.updateMatrixWorld(
@@ -732,117 +794,140 @@
                 true
             );
 
-            rightDummyBone.updateMatrixWorld(
-                true
-            );
-
             weaponGripBone.updateMatrixWorld(
                 true
             );
 
+            rightDummyBone.updateMatrixWorld(
+                true
+            );
+
             // ========================================================
-            // 持ち手ボーンの
-            // 「swModelから見たローカル行列」を取得
+            // 持ち手のワールド行列
             // ========================================================
 
-            const inverseSwWorld =
+            const gripWorldMatrix =
+                new THREE.Matrix4()
+                    .copy(
+                        weaponGripBone.matrixWorld
+                    );
+
+            // ========================================================
+            // sw.glb のルートワールド行列の逆行列
+            // ========================================================
+
+            const inverseWeaponRoot =
                 new THREE.Matrix4()
                     .copy(
                         swModel.matrixWorld
                     )
                     .invert();
 
-            const gripLocalMatrix =
-                new THREE.Matrix4()
-                    .multiplyMatrices(
-                        inverseSwWorld,
-                        weaponGripBone.matrixWorld
-                    );
-
             // ========================================================
-            // アタッチ用オブジェクトを作成
+            // swルート → 持ち手
             //
-            // このオブジェクト自体が
-            // 「右ダミー」と同じ場所・向きになる
+            // これが「持ち手が武器のどこにあるか」
             // ========================================================
 
-            weaponAttachment =
-                new THREE.Object3D();
-
-            weaponAttachment.name =
-                'SW_Weapon_Attachment';
-
-            rightDummyBone.add(
-                weaponAttachment
-            );
+            weaponGripLocalMatrix
+                .multiplyMatrices(
+                    inverseWeaponRoot,
+                    gripWorldMatrix
+                );
 
             // ========================================================
-            // 持ち手ボーンが
-            // アタッチポイントと一致するように
-            // swModelのローカル行列を設定
-            //
-            // gripLocalMatrix * rootMatrix = identity
-            // となるようにする
+            // 持ち手を原点にするための逆行列
             // ========================================================
 
-            const weaponRootMatrix =
-                new THREE.Matrix4()
-                    .copy(
-                        gripLocalMatrix
-                    )
-                    .invert();
+            weaponRootOffsetMatrix
+                .copy(
+                    weaponGripLocalMatrix
+                )
+                .invert();
+
+            // ========================================================
+            // 武器ルートを直接制御する
+            // ========================================================
 
             swModel.matrixAutoUpdate =
                 false;
 
-            swModel.matrix.copy(
-                weaponRootMatrix
-            );
-
-            swModel.matrixWorldNeedsUpdate =
+            weaponAttached =
                 true;
 
-            weaponAttachment.add(
-                swModel
+            console.log(
+                'sw.glb のアタッチ準備完了'
             );
 
+            console.log(
+                '持ち手 → 右ダミー追従を開始'
+            );
+
+            updateWeaponAttachment();
+
+        }
+
+        // ============================================================
+        // 武器追従
+        // ============================================================
+
+        function updateWeaponAttachment() {
+
+            if (
+                !weaponAttached ||
+                !swModel ||
+                !rightDummyBone
+            ) {
+
+                return;
+
+            }
+
             // ========================================================
-            // 武器をアタッチした後、
-            // ワールド行列を更新
+            // 右ダミーのワールド行列
             // ========================================================
 
             rightDummyBone.updateMatrixWorld(
                 true
             );
 
-            weaponAttachment.updateMatrixWorld(
-                true
+            /*
+             * 右ダミーの位置・回転
+             *
+             *        ↓
+             *
+             * [右ダミーのワールド行列]
+             *
+             *        ×
+             *
+             * [持ち手を原点にする補正]
+             *
+             *        ↓
+             *
+             * [sw.glb のワールド行列]
+             */
+
+            const weaponWorldMatrix =
+                new THREE.Matrix4()
+                    .multiplyMatrices(
+                        rightDummyBone.matrixWorld,
+                        weaponRootOffsetMatrix
+                    );
+
+            // ========================================================
+            // sw.glb に直接ワールド行列を適用
+            // ========================================================
+
+            swModel.matrix.copy(
+                weaponWorldMatrix
             );
 
-            swModel.updateMatrixWorld(
-                true
+            swModel.matrixWorld.copy(
+                weaponWorldMatrix
             );
 
-            weaponGripBone.updateMatrixWorld(
-                true
-            );
-
-            weaponAttached =
-                true;
-
-            console.log(
-                'sw.glb を「右ダミー」にアタッチしました。'
-            );
-
-            console.log(
-                '持ち手:',
-                weaponGripBone.name
-            );
-
-            console.log(
-                '右ダミー:',
-                rightDummyBone.name
-            );
+            swModel.matrixWorldNeedsUpdate =
+                false;
 
         }
 
@@ -909,7 +994,7 @@
                     .add(
                         new THREE.Vector3(
                             0,
-                                                       targetHeightOffset,
+                            targetHeightOffset,
                             0
                         )
                     );
@@ -1559,11 +1644,6 @@
 
             else {
 
-                // ------------------------------------
-                // スティックの傾きに関係なく
-                // 入力があれば常に最大速度
-                // ------------------------------------
-
                 if (
                     moveX !== 0 ||
                     moveY !== 0
@@ -1705,9 +1785,17 @@
             const delta =
                 clock.getDelta();
 
+            // --------------------------------------------------------
+            // キャラクター移動
+            // --------------------------------------------------------
+
             updateModelMovement(
                 delta
             );
+
+            // --------------------------------------------------------
+            // ct1アニメーション
+            // --------------------------------------------------------
 
             if (mixer) {
 
@@ -1717,13 +1805,33 @@
 
             }
 
-            /*
-             * sw.glb は右ダミーの子になっているため、
-             * ct1のアニメーションで右ダミーが動けば
-             * swも自動的に追従する。
-             */
+            // --------------------------------------------------------
+            // ct1のアニメーションによって
+            // 右ダミーが動いた後に武器を追従させる
+            // --------------------------------------------------------
+
+            if (
+                targetModel &&
+                rightDummyBone
+            ) {
+
+                targetModel.updateMatrixWorld(
+                    true
+                );
+
+            }
+
+            updateWeaponAttachment();
+
+            // --------------------------------------------------------
+            // カメラ
+            // --------------------------------------------------------
 
             updateCameraPosition();
+
+            // --------------------------------------------------------
+            // 描画
+            // --------------------------------------------------------
 
             renderer.render(
                 scene,
