@@ -2,14 +2,25 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D GLB Viewer - Fixed Joystick Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D GLB Viewer - Simultaneous Multi-touch</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { width: 100vw; height: 100vh; overflow: hidden; background-color: #1a1a1a; touch-action: none; }
-        #canvas-container { width: 100%; height: 100%; }
+        #canvas-container { width: 100%; height: 100%; position: absolute; top:0; left:0; z-index: 1; }
 
-        /* 左下に固定配置されたジョイスティックUI */
+        /* 視点操作（カメラ制御）専用の右側タッチエリア */
+        #camera-touch-zone {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 60%; /* 画面右側60%をカメラ操作エリアに設定 */
+            height: 100%;
+            z-index: 10;
+            touch-action: none;
+        }
+
+        /* 左下固定のジョイスティックUI */
         #joystick-container {
             position: absolute;
             bottom: 40px;
@@ -21,7 +32,7 @@
             border-radius: 50%;
             touch-action: none;
             user-select: none;
-            z-index: 100;
+            z-index: 20; /* カメラエリアより前面に配置 */
             display: block; 
         }
 
@@ -44,7 +55,11 @@
 </head>
 <body>
     <div id="canvas-container"></div>
+    
+    <!-- カメラ操作用の領域を独立させる -->
+    <div id="camera-touch-zone"></div>
 
+    <!-- ジョイスティック -->
     <div id="joystick-container">
         <div id="joystick-stick"></div>
     </div>
@@ -58,25 +73,12 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        // 【改善の重要ポイント】
+        // OrbitControls に Canvas全体ではなく「右側の透明DIV(#camera-touch-zone)」をバインドする
+        const touchZone = document.getElementById('camera-touch-zone');
+        const controls = new THREE.OrbitControls(camera, touchZone);
         controls.enableDamping = true;
         controls.enableZoom = false; // ズーム禁止
-
-        // 【マルチタッチ対策 1】OrbitControls の 2本指・3本指操作を無効化（単一指操作のみ受付）
-        controls.touches = {
-            ONE: THREE.TOUCH.ROTATE,
-            TWO: THREE.TOUCH.NONE // 2本指でのマルチタッチジェスチャー（ズームやパン）を抑止
-        };
-
-        // 【マルチタッチ対策 2】左側1/3領域のタッチを OrbitControls に渡さない
-        controls.domElement.addEventListener('touchstart', (e) => {
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                const touch = e.changedTouches[i];
-                if (touch.clientX <= window.innerWidth / 3) {
-                    e.stopImmediatePropagation();
-                }
-            }
-        }, true);
 
         scene.add(new THREE.AmbientLight(0xffffff, 1.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 2);
@@ -175,7 +177,7 @@
         }
 
         // ============================================================
-        // ジョイスティック処理（Pointer EventによるポインターID制御）
+        // ジョイスティック処理（独立要素としてイベント制御）
         // ============================================================
         const joystickContainer = document.getElementById('joystick-container');
         const joystickStick = document.getElementById('joystick-stick');
@@ -192,21 +194,14 @@
             };
         }
 
-        window.addEventListener('pointerdown', (e) => {
-            if (activePointerId !== null) return;
-
-            const center = getJoystickCenter();
-            const distFromCenter = Math.hypot(e.clientX - center.x, e.clientY - center.y);
-
-            // 固定スティック周辺（半径60px以内）を指で触れた場合
-            if (distFromCenter <= 60) {
-                activePointerId = e.pointerId; // 触れた指の固有IDを記録
-                updateJoystick(e.clientX, e.clientY);
-            }
+        joystickContainer.addEventListener('pointerdown', (e) => {
+            e.stopPropagation(); // カメラ操作側へイベントを行かせない
+            activePointerId = e.pointerId;
+            joystickContainer.setPointerCapture(e.pointerId); // 指が枠外に出ても追尾
+            updateJoystick(e.clientX, e.clientY);
         });
 
-        window.addEventListener('pointermove', (e) => {
-            // ジョイスティックを操作中の特定のPointerIDのみ動かす
+        joystickContainer.addEventListener('pointermove', (e) => {
             if (e.pointerId === activePointerId) {
                 updateJoystick(e.clientX, e.clientY);
             }
@@ -218,8 +213,8 @@
             }
         };
 
-        window.addEventListener('pointerup', handlePointerEnd);
-        window.addEventListener('pointercancel', handlePointerEnd);
+        joystickContainer.addEventListener('pointerup', handlePointerEnd);
+        joystickContainer.addEventListener('pointercancel', handlePointerEnd);
 
         function updateJoystick(clientX, clientY) {
             const center = getJoystickCenter();
