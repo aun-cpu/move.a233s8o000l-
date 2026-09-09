@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>3D GLB Viewer - D-Pad & Camera Joystick</title>
+    <title>3D GLB Viewer - Move Joystick & Right Screen Camera Control</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { width: 100vw; height: 100vh; overflow: hidden; background-color: #1a1a1a; touch-action: none; }
@@ -54,9 +54,9 @@
         #btn-right { top: 52px; right: 0; }
 
         /* --------------------------------------------------
-           右上：視点操作用 ジョイスティックUI
+           右上：移動量感知用 ジョイスティックUI
         -------------------------------------------------- */
-        #camera-joystick-container {
+        #move-joystick-container {
             position: absolute;
             top: 30px;
             right: 30px;
@@ -74,7 +74,7 @@
             justify-content: center;
         }
 
-        #camera-joystick-handle {
+        #move-joystick-handle {
             width: 50px;
             height: 50px;
             background: rgba(255, 255, 255, 0.5);
@@ -99,9 +99,9 @@
         <div id="btn-down" class="btn-arrow">▼</div>
     </div>
 
-    <!-- 右上：視点操作用 ジョイスティックUI -->
-    <div id="camera-joystick-container">
-        <div id="camera-joystick-handle"></div>
+    <!-- 右上：移動用 ジョイスティックUI（移動量感知） -->
+    <div id="move-joystick-container">
+        <div id="move-joystick-handle"></div>
     </div>
 
     <script>
@@ -124,7 +124,7 @@
         // 視点角（極座標）管理
         let cameraSpherical = new THREE.Spherical(cameraDistance, Math.PI / 2.2, Math.PI);
         const minPolarAngle = 0.1;
-        const maxPolarAngle = Math.PI / 2 - 0.05; // 地面下に潜り込まない制御
+        const maxPolarAngle = Math.PI / 2 - 0.05;
 
         let targetModel = null;
         let bgModel = null;
@@ -133,9 +133,9 @@
         let currentAction = null;
         const clock = new THREE.Clock();
 
-        const moveSpeed = 4.0;
+        const maxMoveSpeed = 4.0;
         const rotationSpeed = 10.0;
-        const cameraRotateSpeed = 2.0; // 視点スティックの感度
+        const cameraTouchSensitivity = 0.005; // 画面右側のスワイプ感度
 
         const loader = new THREE.GLTFLoader();
 
@@ -219,7 +219,6 @@
             const startPress = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (e.stopImmediatePropagation) e.stopImmediatePropagation();
 
                 keyState[direction] = true;
                 btn.classList.add('active');
@@ -228,7 +227,6 @@
             const endPress = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (e.stopImmediatePropagation) e.stopImmediatePropagation();
 
                 keyState[direction] = false;
                 btn.classList.remove('active');
@@ -261,36 +259,36 @@
         });
 
         // ============================================================
-        // 右上：視点操作用 ジョイスティック処理
+        // 右上：移動用 ジョイスティック処理（移動量感知）
         // ============================================================
-        const cameraJoystickContainer = document.getElementById('camera-joystick-container');
-        const cameraJoystickHandle = document.getElementById('camera-joystick-handle');
+        const moveJoystickContainer = document.getElementById('move-joystick-container');
+        const moveJoystickHandle = document.getElementById('move-joystick-handle');
 
-        let cameraJoystickActive = false;
-        let cameraJoystickTouchId = null;
-        const cameraJoystickInput = { x: 0, y: 0 }; // -1.0 ~ 1.0 の正規化入力
-        const maxStickRadius = 40; // スティックの可動半径 (px)
+        let moveJoystickActive = false;
+        let moveJoystickTouchId = null;
+        const moveJoystickInput = { x: 0, y: 0, magnitude: 0 }; // 移動方向と強さ (0.0 ~ 1.0)
+        const maxStickRadius = 40; // スティックの最大可動半径 (px)
 
-        function handleCameraStickStart(e) {
+        function handleMoveStickStart(e) {
             e.preventDefault();
             e.stopPropagation();
 
-            if (cameraJoystickActive) return;
+            if (moveJoystickActive) return;
 
             const touch = e.changedTouches ? e.changedTouches[0] : e;
-            cameraJoystickActive = true;
-            cameraJoystickTouchId = touch.identifier !== undefined ? touch.identifier : 'mouse';
+            moveJoystickActive = true;
+            moveJoystickTouchId = touch.identifier !== undefined ? touch.identifier : 'mouse';
 
-            updateCameraStickPosition(touch.clientX, touch.clientY);
+            updateMoveStickPosition(touch.clientX, touch.clientY);
         }
 
-        function handleCameraStickMove(e) {
-            if (!cameraJoystickActive) return;
+        function handleMoveStickMove(e) {
+            if (!moveJoystickActive) return;
 
             let touch = null;
             if (e.changedTouches) {
                 for (let i = 0; i < e.changedTouches.length; i++) {
-                    if (e.changedTouches[i].identifier === cameraJoystickTouchId) {
+                    if (e.changedTouches[i].identifier === moveJoystickTouchId) {
                         touch = e.changedTouches[i];
                         break;
                     }
@@ -302,17 +300,17 @@
             if (touch) {
                 e.preventDefault();
                 e.stopPropagation();
-                updateCameraStickPosition(touch.clientX, touch.clientY);
+                updateMoveStickPosition(touch.clientX, touch.clientY);
             }
         }
 
-        function handleCameraStickEnd(e) {
-            if (!cameraJoystickActive) return;
+        function handleMoveStickEnd(e) {
+            if (!moveJoystickActive) return;
 
             let isTargetRelease = false;
             if (e.changedTouches) {
                 for (let i = 0; i < e.changedTouches.length; i++) {
-                    if (e.changedTouches[i].identifier === cameraJoystickTouchId) {
+                    if (e.changedTouches[i].identifier === moveJoystickTouchId) {
                         isTargetRelease = true;
                         break;
                     }
@@ -324,16 +322,17 @@
             if (isTargetRelease) {
                 e.preventDefault();
                 e.stopPropagation();
-                cameraJoystickActive = false;
-                cameraJoystickTouchId = null;
-                cameraJoystickInput.x = 0;
-                cameraJoystickInput.y = 0;
-                cameraJoystickHandle.style.transform = `translate(0px, 0px)`;
+                moveJoystickActive = false;
+                moveJoystickTouchId = null;
+                moveJoystickInput.x = 0;
+                moveJoystickInput.y = 0;
+                moveJoystickInput.magnitude = 0;
+                moveJoystickHandle.style.transform = `translate(0px, 0px)`;
             }
         }
 
-        function updateCameraStickPosition(clientX, clientY) {
-            const rect = cameraJoystickContainer.getBoundingClientRect();
+        function updateMoveStickPosition(clientX, clientY) {
+            const rect = moveJoystickContainer.getBoundingClientRect();
             const centerX = rect.left + rect.width / 2;
             const centerY = rect.top + rect.height / 2;
 
@@ -347,54 +346,147 @@
                 deltaY = (deltaY / distance) * maxStickRadius;
             }
 
-            cameraJoystickHandle.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+            moveJoystickHandle.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
 
-            cameraJoystickInput.x = deltaX / maxStickRadius;
-            cameraJoystickInput.y = deltaY / maxStickRadius;
+            // アナログ移動量の計算 (0.0 ~ 1.0)
+            const normDist = Math.min(distance, maxStickRadius) / maxStickRadius;
+            if (normDist > 0) {
+                moveJoystickInput.x = deltaX / distance;
+                moveJoystickInput.y = deltaY / distance;
+                moveJoystickInput.magnitude = normDist;
+            } else {
+                moveJoystickInput.x = 0;
+                moveJoystickInput.y = 0;
+                moveJoystickInput.magnitude = 0;
+            }
         }
 
-        cameraJoystickContainer.addEventListener('pointerdown', handleCameraStickStart, { passive: false });
-        window.addEventListener('pointermove', handleCameraStickMove, { passive: false });
-        window.addEventListener('pointerup', handleCameraStickEnd, { passive: false });
-        window.addEventListener('pointercancel', handleCameraStickEnd, { passive: false });
-
-        cameraJoystickContainer.addEventListener('touchstart', handleCameraStickStart, { passive: false });
-        window.addEventListener('touchmove', handleCameraStickMove, { passive: false });
-        window.addEventListener('touchend', handleCameraStickEnd, { passive: false });
-        window.addEventListener('touchcancel', handleCameraStickEnd, { passive: false });
+        moveJoystickContainer.addEventListener('pointerdown', handleMoveStickStart, { passive: false });
+        window.addEventListener('pointermove', handleMoveStickMove, { passive: false });
+        window.addEventListener('pointerup', handleMoveStickEnd, { passive: false });
+        window.addEventListener('pointercancel', handleMoveStickEnd, { passive: false });
 
         // ============================================================
-        // 移動・視点制御のフレーム更新
+        // 画面右側領域での 視点（カメラ）操作（ドラッグ / スワイプ）
+        // ============================================================
+        let isCameraDragging = false;
+        let cameraTouchId = null;
+        let previousTouchX = 0;
+        let previousTouchY = 0;
+
+        function handleRightScreenStart(e) {
+            // UI上のクリックイベントは除外
+            if (e.target.closest('#dpad-container') || e.target.closest('#move-joystick-container')) {
+                return;
+            }
+
+            const touch = e.changedTouches ? e.changedTouches[0] : e;
+
+            // 画面の右半分の領域のみ反応
+            if (touch.clientX >= window.innerWidth / 2) {
+                isCameraDragging = true;
+                cameraTouchId = touch.identifier !== undefined ? touch.identifier : 'mouse';
+                previousTouchX = touch.clientX;
+                previousTouchY = touch.clientY;
+            }
+        }
+
+        function handleRightScreenMove(e) {
+            if (!isCameraDragging) return;
+
+            let touch = null;
+            if (e.changedTouches) {
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === cameraTouchId) {
+                        touch = e.changedTouches[i];
+                        break;
+                    }
+                }
+            } else {
+                touch = e;
+            }
+
+            if (touch) {
+                const deltaX = touch.clientX - previousTouchX;
+                const deltaY = touch.clientY - previousTouchY;
+
+                // 視点（カメラ）の旋回・ピッチ更新
+                cameraSpherical.theta -= deltaX * cameraTouchSensitivity;
+                cameraSpherical.phi += deltaY * cameraTouchSensitivity;
+                cameraSpherical.phi = Math.max(minPolarAngle, Math.min(maxPolarAngle, cameraSpherical.phi));
+
+                previousTouchX = touch.clientX;
+                previousTouchY = touch.clientY;
+            }
+        }
+
+        function handleRightScreenEnd(e) {
+            if (!isCameraDragging) return;
+
+            let isTargetRelease = false;
+            if (e.changedTouches) {
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === cameraTouchId) {
+                        isTargetRelease = true;
+                        break;
+                    }
+                }
+            } else {
+                isTargetRelease = true;
+            }
+
+            if (isTargetRelease) {
+                isCameraDragging = false;
+                cameraTouchId = null;
+            }
+        }
+
+        window.addEventListener('pointerdown', handleRightScreenStart, { passive: false });
+        window.addEventListener('pointermove', handleRightScreenMove, { passive: false });
+        window.addEventListener('pointerup', handleRightScreenEnd, { passive: false });
+        window.addEventListener('pointercancel', handleRightScreenEnd, { passive: false });
+
+        // ============================================================
+        // 移動・フレーム更新処理
         // ============================================================
         function updateModelMovement(delta) {
             if (!targetModel) return;
 
-            // --- 視点（カメラ）の更新 ---
-            if (cameraJoystickActive && (cameraJoystickInput.x !== 0 || cameraJoystickInput.y !== 0)) {
-                // X軸入力：方位角 (theta) の変更
-                cameraSpherical.theta -= cameraJoystickInput.x * cameraRotateSpeed * delta;
+            let moveX = 0;
+            let moveY = 0;
+            let currentSpeed = 0;
 
-                // Y軸入力：極角 (phi) の変更
-                cameraSpherical.phi += cameraJoystickInput.y * cameraRotateSpeed * delta;
-                cameraSpherical.phi = Math.max(minPolarAngle, Math.min(maxPolarAngle, cameraSpherical.phi));
+            // 1. スティック入力優先計算（アナログ感知）
+            if (moveJoystickActive && moveJoystickInput.magnitude > 0) {
+                moveX = moveJoystickInput.x;
+                moveY = moveJoystickInput.y;
+                currentSpeed = maxMoveSpeed * moveJoystickInput.magnitude;
+            } else {
+                // 2. D-Pad / キーボード入力計算
+                let inputX = 0;
+                let inputY = 0;
+
+                if (keyState.right) inputX += 1;
+                if (keyState.left)  inputX -= 1;
+                if (keyState.up)    inputY -= 1;
+                if (keyState.down)  inputY += 1;
+
+                if (inputX !== 0 || inputY !== 0) {
+                    const length = Math.hypot(inputX, inputY);
+                    moveX = inputX / length;
+                    moveY = inputY / length;
+                    currentSpeed = maxMoveSpeed;
+                }
             }
 
-            // --- 移動処理 ---
-            let inputX = 0;
-            let inputY = 0;
-
-            if (keyState.right) inputX += 1;
-            if (keyState.left)  inputX -= 1;
-            if (keyState.up)    inputY -= 1;
-            if (keyState.down)  inputY += 1;
-
-            const isMoving = inputX !== 0 || inputY !== 0;
+            const isMoving = currentSpeed > 0;
 
             if (isMoving) {
                 if (actions.length > 1) {
                     setAction(1);
                 }
 
+                // カメラの向きに基づいた移動ベクトル
                 const cameraForward = new THREE.Vector3();
                 camera.getWorldDirection(cameraForward);
                 cameraForward.y = 0;
@@ -404,12 +496,13 @@
                 cameraRight.crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
 
                 const moveDirection = new THREE.Vector3()
-                    .addScaledVector(cameraRight, inputX)
-                    .addScaledVector(cameraForward, -inputY)
+                    .addScaledVector(cameraRight, moveX)
+                    .addScaledVector(cameraForward, -moveY)
                     .normalize();
 
-                targetModel.position.addScaledVector(moveDirection, moveSpeed * delta);
+                targetModel.position.addScaledVector(moveDirection, currentSpeed * delta);
 
+                // 移動方向へ旋回
                 const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
                 const targetQuaternion = new THREE.Quaternion();
                 targetQuaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle);
