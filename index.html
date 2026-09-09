@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D GLB Viewer</title>
+    <title>3D GLB Viewer - Target Follow</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { width: 100vw; height: 100vh; overflow: hidden; background-color: #1a1a1a; }
@@ -19,7 +19,6 @@
     <script>
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 1.5, 3); // モデルが見えない場合はこの数字を調整
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -34,22 +33,75 @@
         dirLight.position.set(5, 10, 7.5);
         scene.add(dirLight);
 
+        // --- カメラ追従用の設定値 ---
+        // モデルからの相対距離 (x: 左右, y: 上下の高さ, z: 前後の距離)
+        const cameraOffset = new THREE.Vector3(0, 2.5, 5); 
+
+        let targetModel = null;
+        let mixer = null; // アニメーション用
+        const clock = new THREE.Clock();
+
         const loader = new THREE.GLTFLoader();
+
+        // 1. 背景またはメインの背景モデル（必要に応じて併用可能）
+        // 2. 中心となるモデル ct1.glb の読み込み
         loader.load(
-            './bg.glb',
+            './ct1.glb',
             function (gltf) {
-                // 安全のため、サイズ自動計算を行わずにそのまま配置
-                scene.add(gltf.scene);
-                console.log('モデルを安全に配置しました');
+                targetModel = gltf.scene;
+                scene.add(targetModel);
+
+                // アニメーションデータが含まれている場合は再生準備
+                if (gltf.animations && gltf.animations.length > 0) {
+                    mixer = new THREE.AnimationMixer(targetModel);
+                    const action = mixer.clipAction(gltf.animations[0]);
+                    action.play();
+                }
+
+                // 初期カメラ位置のセット（モデルの後ろ斜め上）
+                updateCameraPosition();
+                
+                console.log('ct1.glb の読み込みに成功しました');
             },
             undefined,
             function (error) {
-                console.error('読み込みエラー:', error);
+                console.error('ct1.glb の読み込みエラー:', error);
             }
         );
 
+        // カメラとOrbitControlsの注視点を更新する関数
+        function updateCameraPosition() {
+            if (!targetModel) return;
+
+            // モデルの現在位置を取得
+            const modelPosition = new THREE.Vector3();
+            targetModel.getWorldPosition(modelPosition);
+
+            // モデルの回転（向き）に合わせた相対オフセットを計算
+            const offset = cameraOffset.clone().applyQuaternion(targetModel.quaternion);
+            
+            // カメラ位置をモデルの後ろ斜め上に設定
+            camera.position.copy(modelPosition).add(offset);
+
+            // OrbitControlsの操作中心点をモデルの位置に設定
+            controls.target.copy(modelPosition);
+        }
+
         function animate() {
             requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            
+            // アニメーションがある場合は更新
+            if (mixer) {
+                mixer.update(delta);
+            }
+
+            // モデルが存在する場合、毎フレームカメラ追従を更新
+            if (targetModel) {
+                updateCameraPosition();
+            }
+
             controls.update();
             renderer.render(scene, camera);
         }
