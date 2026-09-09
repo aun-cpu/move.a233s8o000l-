@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D GLB Viewer - Wireframe Background</title>
+    <title>3D GLB Viewer - Wireframe Background (Scaled x2)</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { width: 100vw; height: 100vh; overflow: hidden; background-color: #1a1a1a; }
@@ -49,11 +49,14 @@
 
         const loader = new THREE.GLTFLoader();
 
-        // 1. 背景モデル (bg.glb) の読み込み＆ワイヤーフレーム化
+        // 1. 背景モデル (bg.glb) の読み込み＆ワイヤーフレーム化＆スケール拡大
         loader.load(
             './bg.glb',
             function (gltf) {
                 bgModel = gltf.scene;
+
+                // --- bg.glb のサイズを2倍にする設定 ---
+                bgModel.scale.set(2, 2, 2);
 
                 // モデル全体の全メッシュを走査してワイヤーフレーム表示を有効化
                 bgModel.traverse((child) => {
@@ -69,7 +72,7 @@
                 });
 
                 scene.add(bgModel);
-                console.log('bg.glb の読み込みとワイヤーフレーム化に成功しました');
+                console.log('bg.glb の読み込み、ワイヤーフレーム化、2倍拡大に成功しました');
             },
             undefined,
             function (error) {
