@@ -36,12 +36,13 @@
         dirLight.position.set(5, 10, 7.5);
         scene.add(dirLight);
 
-        // --- 回転軸（注視点）を上げるための高さオフセット ---
-        // この値を大きくすると回転軸がさらに上がります（例: 1.5 〜 2.0 程度で調整）
+        // --- 回転軸（注視点）の高さオフセット ---
         const targetHeightOffset = 1.5;
 
         // --- 初期カメラ位置のオフセット ---
-        const cameraOffset = new THREE.Vector3(0, 1.6, 0.4); 
+        // 1. Z方向の符号をマイナスにし、モデルの後ろ側へ配置
+        // 2. Y（高さ）を低く、Z（後方距離）を伸ばすことで総距離を保ちつつ前方を向く角度に調整
+        const cameraOffset = new THREE.Vector3(0, 0.4, -1.6); 
 
         let targetModel = null;
         let mixer = null;
