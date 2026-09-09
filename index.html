@@ -1296,22 +1296,18 @@
 
             else {
 
-                const stickStrength =
-                    Math.min(
-                        1,
-                        Math.hypot(
-                            moveX,
-                            moveY
-                        )
-                    );
+                // ------------------------------------
+                // スティックの傾きに関係なく
+                // 入力があれば常に最大速度
+                // ------------------------------------
 
                 if (
-                    stickStrength > 0
+                    moveX !== 0 ||
+                    moveY !== 0
                 ) {
 
                     currentSpeed =
-                        maxMoveSpeed *
-                        stickStrength;
+                        maxMoveSpeed;
 
                 }
 
