@@ -237,7 +237,7 @@
 
             const touch = e.changedTouches ? e.changedTouches[0] : e;
 
-            // 画面の右半分の領域のみ視点操作に反応
+            // 画面の右半分の領域のみ視点操作を開始
             if (touch.clientX >= window.innerWidth / 2) {
                 isCameraDragging = true;
                 cameraTouchId = touch.identifier !== undefined ? touch.identifier : 'mouse';
@@ -262,12 +262,20 @@
             }
 
             if (touch) {
+                // ドラッグ位置が画面の左半分（画面右側境界）を超えたら無効化してドラッグ終了
+                if (touch.clientX < window.innerWidth / 2) {
+                    isCameraDragging = false;
+                    cameraTouchId = null;
+                    return;
+                }
+
                 const deltaX = touch.clientX - previousTouchX;
                 const deltaY = touch.clientY - previousTouchY;
 
                 // 視点（カメラ）の旋回・ピッチ更新
                 cameraSpherical.theta -= deltaX * cameraTouchSensitivity;
-                cameraSpherical.phi += deltaY * cameraTouchSensitivity;
+                // 上下操作の反転（+= から -= に変更）
+                cameraSpherical.phi -= deltaY * cameraTouchSensitivity;
                 cameraSpherical.phi = Math.max(minPolarAngle, Math.min(maxPolarAngle, cameraSpherical.phi));
 
                 previousTouchX = touch.clientX;
