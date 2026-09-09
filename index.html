@@ -36,8 +36,11 @@
         dirLight.position.set(5, 10, 7.5);
         scene.add(dirLight);
 
+        // --- 回転軸（注視点）を上げるための高さオフセット ---
+        // この値を大きくすると回転軸がさらに上がります（例: 1.5 〜 2.0 程度で調整）
+        const targetHeightOffset = 1.5;
+
         // --- 初期カメラ位置のオフセット ---
-        // モデルに近づけるため高さ(y)と距離(z)の値を小さくしてデフォルト拡大状態に設定
         const cameraOffset = new THREE.Vector3(0, 1.8, 0.8); 
 
         let targetModel = null;
@@ -80,11 +83,14 @@
             const modelPosition = new THREE.Vector3();
             targetModel.getWorldPosition(modelPosition);
 
+            // 回転軸のY座標（高さ）を上げる
+            const targetPosition = modelPosition.clone().add(new THREE.Vector3(0, targetHeightOffset, 0));
+
             const offset = cameraOffset.clone().applyQuaternion(targetModel.quaternion);
             
-            // 初回のカメラ位置と注視点を設定
-            camera.position.copy(modelPosition).add(offset);
-            controls.target.copy(modelPosition);
+            // 回転軸（targetPosition）基準でカメラ位置を設定
+            camera.position.copy(targetPosition).add(offset);
+            controls.target.copy(targetPosition);
             controls.update();
         }
 
@@ -95,10 +101,12 @@
             const modelPosition = new THREE.Vector3();
             targetModel.getWorldPosition(modelPosition);
 
-            // 前フレームからのモデルの移動分（差分）を計算
-            const deltaPosition = modelPosition.clone().sub(controls.target);
+            // 移動後の回転軸位置を計算
+            const targetPosition = modelPosition.clone().add(new THREE.Vector3(0, targetHeightOffset, 0));
 
-            // 注視点とカメラの両方を平行移動させる（カメラの回転角度や距離は維持）
+            // 前フレームからの移動差分を計算してカメラと注視点をスライド
+            const deltaPosition = targetPosition.clone().sub(controls.target);
+
             controls.target.add(deltaPosition);
             camera.position.add(deltaPosition);
         }
@@ -112,7 +120,7 @@
                 mixer.update(delta);
             }
 
-            // モデルが動いた場合、カメラの向きを変えずに平行移動のみ追従
+            // モデルが動いた場合、回転軸を上げた状態を維持して追従
             if (targetModel) {
                 followModelPosition();
             }
