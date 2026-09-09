@@ -1,440 +1,500 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ct1.glb Test Viewer</title>
 
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+<style>
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
 
-    <title>ct1 Test</title>
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #202020;
+}
 
-    <style>
+canvas {
+    display: block;
+}
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            width: 100vw;
-            height: 100vh;
-            overflow: hidden;
-            background: #222;
-        }
-
-    </style>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-
+#info {
+    position: fixed;
+    left: 10px;
+    top: 10px;
+    z-index: 10;
+    padding: 10px 12px;
+    max-width: calc(100% - 20px);
+    color: white;
+    background: rgba(0, 0, 0, 0.75);
+    font: 13px/1.5 monospace;
+    white-space: pre-wrap;
+    border-radius: 6px;
+}
+</style>
 </head>
 
 <body>
 
+<div id="info">ct1.glb 読み込み開始...</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r160/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
+
 <script>
 
-    console.log("===== TEST START =====");
+'use strict';
 
-    // ============================================================
-    // Scene
-    // ============================================================
+const info = document.getElementById('info');
 
-    const scene =
-        new THREE.Scene();
+function log(text) {
+    console.log(text);
+    info.textContent += '\n' + text;
+}
 
-    scene.background =
-        new THREE.Color(0x222222);
+const scene = new THREE.Scene();
 
+scene.background = new THREE.Color(0x202020);
 
-    // ============================================================
-    // Camera
-    // ============================================================
+const camera = new THREE.PerspectiveCamera(
+    45,
+    window.innerWidth / window.innerHeight,
+    0.01,
+    1000
+);
 
-    const camera =
-        new THREE.PerspectiveCamera(
-            60,
-            window.innerWidth / window.innerHeight,
-            0.001,
-            10000
-        );
+const renderer = new THREE.WebGLRenderer({
+    antialias: true
+});
 
-    camera.position.set(
-        0,
-        1,
-        5
-    );
+renderer.setPixelRatio(
+    Math.min(window.devicePixelRatio, 2)
+);
 
+renderer.setSize(
+    window.innerWidth,
+    window.innerHeight
+);
 
-    // ============================================================
-    // Renderer
-    // ============================================================
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    const renderer =
-        new THREE.WebGLRenderer({
-            antialias: true
-        });
-
-    renderer.setSize(
-        window.innerWidth,
-        window.innerHeight
-    );
-
-    renderer.setPixelRatio(
-        Math.min(
-            window.devicePixelRatio,
-            2
-        )
-    );
-
-    renderer.outputEncoding =
-        THREE.sRGBEncoding;
-
-    document.body.appendChild(
-        renderer.domElement
-    );
+document.body.appendChild(renderer.domElement);
 
 
-    // ============================================================
-    // Light
-    // ============================================================
+// 明るさを確保
+scene.add(
+    new THREE.AmbientLight(
+        0xffffff,
+        2.5
+    )
+);
 
-    const ambient =
-        new THREE.AmbientLight(
-            0xffffff,
-            3
-        );
+const keyLight = new THREE.DirectionalLight(
+    0xffffff,
+    4
+);
 
-    scene.add(
-        ambient
-    );
+keyLight.position.set(
+    5,
+    10,
+    8
+);
 
+scene.add(keyLight);
 
-    const directional =
-        new THREE.DirectionalLight(
-            0xffffff,
-            5
-        );
+const fillLight = new THREE.DirectionalLight(
+    0xffffff,
+    2
+);
 
-    directional.position.set(
-        5,
-        10,
-        5
-    );
+fillLight.position.set(
+    -5,
+    5,
+    -8
+);
 
-    scene.add(
-        directional
-    );
-
-
-    // ============================================================
-    // GLTF Loader
-    // ============================================================
-
-    const loader =
-        new THREE.GLTFLoader();
+scene.add(fillLight);
 
 
-    console.log(
-        "ct1.glb の読み込み開始"
-    );
+// 床
+const grid = new THREE.GridHelper(
+    10,
+    20,
+    0x666666,
+    0x333333
+);
+
+scene.add(grid);
 
 
-    loader.load(
+// XYZ軸
+const axes = new THREE.AxesHelper(2);
 
-        "./ct1.glb",
-
-        function(gltf) {
-
-            console.log(
-                "★★★★★★★★★★★★★★★★"
-            );
-
-            console.log(
-                "ct1.glb 読み込み成功"
-            );
-
-            console.log(
-                "★★★★★★★★★★★★★★★★"
-            );
+scene.add(axes);
 
 
-            const model =
-                gltf.scene;
+const loader = new THREE.GLTFLoader();
 
 
-            // ====================================================
-            // モデルをシーンに追加
-            // ====================================================
+loader.load(
 
-            scene.add(
-                model
-            );
+    './ct1.glb',
+
+    function(gltf) {
+
+        log('✓ ct1.glb 読み込み成功');
+
+        const model = gltf.scene;
+
+        scene.add(model);
 
 
-            // ====================================================
-            // 全Mesh確認
-            // ====================================================
+        let meshCount = 0;
+        let skinnedMeshCount = 0;
+        let boneCount = 0;
+        let materialCount = 0;
 
-            let meshCount = 0;
 
-            model.traverse(
-                function(object) {
+        model.traverse(function(obj) {
 
-                    console.log(
-                        "OBJECT:",
-                        object.type,
-                        object.name
-                    );
+            obj.visible = true;
 
-                    if (
-                        object.isMesh
-                    ) {
 
-                        meshCount++;
+            if (obj.isMesh) {
 
-                        object.visible =
-                            true;
+                meshCount++;
 
-                        object.frustumCulled =
-                            false;
 
-                        if (
-                            object.material
-                        ) {
+                if (obj.isSkinnedMesh) {
+                    skinnedMeshCount++;
+                }
 
-                            object.material.visible =
-                                true;
 
-                        }
+                // 表示確認を最優先するため、
+                // 元のマテリアルを使わず単純な白色にする
+                obj.material =
+                    new THREE.MeshBasicMaterial({
 
-                    }
+                        color: 0xffffff,
+
+                        side: THREE.DoubleSide
+
+                    });
+
+
+                obj.frustumCulled = false;
+
+
+                if (obj.geometry) {
+
+                    obj.geometry.computeBoundingBox();
 
                 }
+
+            }
+
+
+            if (obj.isBone) {
+
+                boneCount++;
+
+            }
+
+
+            if (obj.material) {
+
+                materialCount++;
+
+            }
+
+        });
+
+
+        log(
+            'Mesh数: ' +
+            meshCount
+        );
+
+
+        log(
+            'SkinnedMesh数: ' +
+            skinnedMeshCount
+        );
+
+
+        log(
+            'Bone数: ' +
+            boneCount
+        );
+
+
+        log(
+            'Animation数: ' +
+            gltf.animations.length
+        );
+
+
+        if (gltf.animations.length) {
+
+            log(
+                'Animation: ' +
+                gltf.animations
+                    .map(a => a.name)
+                    .join(', ')
             );
 
-
-            console.log(
-                "Mesh数:",
-                meshCount
-            );
+        }
 
 
-            // ====================================================
-            // 初期変換をリセット
-            // ====================================================
-
-            model.position.set(
-                0,
-                0,
-                0
-            );
-
-            model.rotation.set(
-                0,
-                0,
-                0
-            );
-
-            model.scale.set(
-                1,
-                1,
-                1
-            );
+        // モデル全体のBoundingBox
+        const box =
+            new THREE.Box3()
+                .setFromObject(model);
 
 
-            // ====================================================
-            // 行列更新
-            // ====================================================
-
-            scene.updateMatrixWorld(
-                true
-            );
-
-
-            // ====================================================
-            // BoundingBox
-            // ====================================================
-
-            const box =
-                new THREE.Box3()
-                    .setFromObject(
-                        model
-                    );
-
-
-            const size =
-                new THREE.Vector3();
-
-            const center =
-                new THREE.Vector3();
-
-
+        const size =
             box.getSize(
-                size
+                new THREE.Vector3()
             );
 
+
+        const center =
             box.getCenter(
-                center
+                new THREE.Vector3()
             );
 
 
-            console.log(
-                "BoundingBox:",
-                box
-            );
+        log(
+            'BoundingBox size: ' +
 
-            console.log(
-                "モデルサイズ:",
+            size.x.toFixed(3) +
+            ' / ' +
+
+            size.y.toFixed(3) +
+            ' / ' +
+
+            size.z.toFixed(3)
+        );
+
+
+        log(
+            'BoundingBox center: ' +
+
+            center.x.toFixed(3) +
+            ' / ' +
+
+            center.y.toFixed(3) +
+            ' / ' +
+
+            center.z.toFixed(3)
+        );
+
+
+        // モデルを原点へ移動
+        model.position.sub(center);
+
+
+        // モデルサイズからカメラ距離を決定
+        const maxSize =
+            Math.max(
                 size.x,
                 size.y,
                 size.z
             );
 
-            console.log(
-                "モデル中心:",
-                center.x,
-                center.y,
-                center.z
-            );
+
+        camera.position.set(
+
+            maxSize * 1.8,
+
+            maxSize * 0.8,
+
+            maxSize * 1.8
+
+        );
 
 
-            // ====================================================
-            // 自動的にモデルの正面へカメラ配置
-            // ====================================================
+        camera.lookAt(
+            0,
+            maxSize * 0.35,
+            0
+        );
 
-            const maxSize =
-                Math.max(
-                    size.x,
-                    size.y,
-                    size.z
+
+        // アニメーション
+        let mixer = null;
+
+
+        if (gltf.animations.length > 0) {
+
+            mixer =
+                new THREE.AnimationMixer(
+                    model
                 );
 
 
-            let distance =
-                maxSize * 2;
+            const idle =
+                gltf.animations.find(
+                    a => a.name === 'idle'
+                );
 
 
-            if (
-                !isFinite(distance) ||
-                distance <= 0
-            ) {
+            const action =
+                idle ||
+                gltf.animations[0];
 
-                distance = 5;
+
+            if (action) {
+
+                const animationAction =
+                    mixer.clipAction(action);
+
+                animationAction.reset();
+                animationAction.play();
+
+                log(
+                    '再生Animation: ' +
+                    action.name
+                );
 
             }
 
-
-            camera.position.set(
-                center.x,
-                center.y,
-                center.z + distance
-            );
+        }
 
 
-            camera.lookAt(
-                center
-            );
+        // Mesh情報
+        model.traverse(function(obj) {
+
+            if (obj.isMesh) {
+
+                log(
+                    'Mesh: ' +
+                    obj.name +
+                    ' / geometry=' +
+                    (
+                        obj.geometry
+                        ? 'OK'
+                        : 'NONE'
+                    )
+                );
+
+            }
+
+        });
 
 
-            console.log(
-                "カメラ位置:",
-                camera.position
-            );
+        window.__mixer = mixer;
+        window.__model = model;
 
 
-            console.log(
-                "表示処理完了"
-            );
+        info.style.background =
+            'rgba(0, 80, 0, .8)';
 
-        },
-
-
-        // ========================================================
-        // Loading Progress
-        // ========================================================
-
-        function(xhr) {
-
-            console.log(
-                "読み込み:",
-                xhr.loaded,
-                "/",
-                xhr.total
-            );
-
-        },
+    },
 
 
-        // ========================================================
-        // Error
-        // ========================================================
+    function(xhr) {
 
-        function(error) {
+        if (xhr.total) {
 
-            console.error(
-                "!!!!!!!!!!!!!!!!!!!!!!!!"
-            );
+            const percent =
+                (
+                    xhr.loaded /
+                    xhr.total *
+                    100
+                ).toFixed(1);
 
-            console.error(
-                "ct1.glb 読み込み失敗"
-            );
 
-            console.error(
-                error
-            );
-
-            console.error(
-                "!!!!!!!!!!!!!!!!!!!!!!!!"
-            );
+            info.textContent =
+                'ct1.glb 読み込み中... ' +
+                percent +
+                '%';
 
         }
 
+    },
+
+
+    function(error) {
+
+        console.error(
+            'ct1.glb 読み込み失敗:',
+            error
+        );
+
+
+        info.textContent =
+            '✗ ct1.glb 読み込み失敗\n\n' +
+            'Consoleに詳細なエラーがあります。\n' +
+            String(error);
+
+
+        info.style.background =
+            'rgba(100, 0, 0, .85)';
+
+    }
+
+);
+
+
+const clock = new THREE.Clock();
+
+
+function animate() {
+
+    requestAnimationFrame(
+        animate
     );
 
 
-    // ============================================================
-    // Render
-    // ============================================================
+    const delta =
+        clock.getDelta();
 
-    function animate() {
 
-        requestAnimationFrame(
-            animate
-        );
+    if (window.__mixer) {
 
-        renderer.render(
-            scene,
-            camera
+        window.__mixer.update(
+            delta
         );
 
     }
 
-    animate();
 
-
-    // ============================================================
-    // Resize
-    // ============================================================
-
-    window.addEventListener(
-        "resize",
-        function() {
-
-            camera.aspect =
-                window.innerWidth /
-                window.innerHeight;
-
-            camera.updateProjectionMatrix();
-
-            renderer.setSize(
-                window.innerWidth,
-                window.innerHeight
-            );
-
-        }
+    renderer.render(
+        scene,
+        camera
     );
+
+}
+
+
+animate();
+
+
+window.addEventListener(
+    'resize',
+    function() {
+
+        camera.aspect =
+            window.innerWidth /
+            window.innerHeight;
+
+
+        camera.updateProjectionMatrix();
+
+
+        renderer.setSize(
+            window.innerWidth,
+            window.innerHeight
+        );
+
+    }
+);
 
 </script>
 
