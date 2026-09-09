@@ -22,7 +22,6 @@
             touch-action: none;
             user-select: none;
             z-index: 100;
-            /* 常に表示 */
             display: block; 
         }
 
@@ -46,7 +45,6 @@
 <body>
     <div id="canvas-container"></div>
 
-    <!-- 左下固定のジョイスティックUI -->
     <div id="joystick-container">
         <div id="joystick-stick"></div>
     </div>
@@ -64,28 +62,21 @@
         controls.enableDamping = true;
         controls.enableZoom = false; // ズーム禁止
 
-        // ------------------------------------------------------------
-        // 【修正点】カメラ操作（視点移動）を画面右側（2/3）のみに制限
-        // ------------------------------------------------------------
-        const originalTouchStart = controls.onTouchStart ? controls.onTouchStart.bind(controls) : null;
-        const originalMouseDown = controls.onMouseDown ? controls.onMouseDown.bind(controls) : null;
+        // 【マルチタッチ対策 1】OrbitControls の 2本指・3本指操作を無効化（単一指操作のみ受付）
+        controls.touches = {
+            ONE: THREE.TOUCH.ROTATE,
+            TWO: THREE.TOUCH.NONE // 2本指でのマルチタッチジェスチャー（ズームやパン）を抑止
+        };
 
-        // タッチでの視点操作制御
+        // 【マルチタッチ対策 2】左側1/3領域のタッチを OrbitControls に渡さない
         controls.domElement.addEventListener('touchstart', (e) => {
-            const touch = e.touches[0];
-            // 画面左側（1/3）でタッチ開始された場合は視点操作を無効化
-            if (touch && touch.clientX <= window.innerWidth / 3) {
-                e.stopImmediatePropagation();
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                if (touch.clientX <= window.innerWidth / 3) {
+                    e.stopImmediatePropagation();
+                }
             }
         }, true);
-
-        // マウス操作での視点操作制御
-        controls.domElement.addEventListener('mousedown', (e) => {
-            if (e.clientX <= window.innerWidth / 3) {
-                e.stopImmediatePropagation();
-            }
-        }, true);
-
 
         scene.add(new THREE.AmbientLight(0xffffff, 1.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 2);
@@ -184,14 +175,14 @@
         }
 
         // ============================================================
-        // 【修正点】固定型ジョイスティックの処理
+        // ジョイスティック処理（Pointer EventによるポインターID制御）
         // ============================================================
         const joystickContainer = document.getElementById('joystick-container');
         const joystickStick = document.getElementById('joystick-stick');
         
         let joystickInput = { x: 0, y: 0 };
-        let activeTouchId = null;
-        const maxRadius = 40; // 可動半径（px）
+        let activePointerId = null;
+        const maxRadius = 40;
 
         function getJoystickCenter() {
             const rect = joystickContainer.getBoundingClientRect();
@@ -201,61 +192,34 @@
             };
         }
 
-        function handlePointerDown(e) {
-            if (activeTouchId !== null) return;
-
-            const clientX = e.clientX ?? (e.touches && e.touches[0].clientX);
-            const clientY = e.clientY ?? (e.touches && e.touches[0].clientY);
+        window.addEventListener('pointerdown', (e) => {
+            if (activePointerId !== null) return;
 
             const center = getJoystickCenter();
-            const distFromCenter = Math.hypot(clientX - center.x, clientY - center.y);
+            const distFromCenter = Math.hypot(e.clientX - center.x, e.clientY - center.y);
 
-            // ジョイスティック要素自体の周辺（半径60px以内）をタップした場合のみ反応
+            // 固定スティック周辺（半径60px以内）を指で触れた場合
             if (distFromCenter <= 60) {
-                activeTouchId = e.pointerId ?? (e.changedTouches ? e.changedTouches[0].identifier : 'mouse');
-                updateJoystick(clientX, clientY);
+                activePointerId = e.pointerId; // 触れた指の固有IDを記録
+                updateJoystick(e.clientX, e.clientY);
             }
-        }
+        });
 
-        function handlePointerMove(e) {
-            if (activeTouchId === null) return;
-
-            let touch = null;
-            if (e.changedTouches) {
-                for (let i = 0; i < e.changedTouches.length; i++) {
-                    if (e.changedTouches[i].identifier === activeTouchId) {
-                        touch = e.changedTouches[i];
-                        break;
-                    }
-                }
-            } else if (e.pointerId === activeTouchId || activeTouchId === 'mouse') {
-                touch = e;
+        window.addEventListener('pointermove', (e) => {
+            // ジョイスティックを操作中の特定のPointerIDのみ動かす
+            if (e.pointerId === activePointerId) {
+                updateJoystick(e.clientX, e.clientY);
             }
+        });
 
-            if (touch) {
-                updateJoystick(touch.clientX, touch.clientY);
-            }
-        }
-
-        function handlePointerUp(e) {
-            if (activeTouchId === null) return;
-
-            let shouldReset = false;
-            if (e.changedTouches) {
-                for (let i = 0; i < e.changedTouches.length; i++) {
-                    if (e.changedTouches[i].identifier === activeTouchId) {
-                        shouldReset = true;
-                        break;
-                    }
-                }
-            } else {
-                shouldReset = true;
-            }
-
-            if (shouldReset) {
+        const handlePointerEnd = (e) => {
+            if (e.pointerId === activePointerId) {
                 resetJoystick();
             }
-        }
+        };
+
+        window.addEventListener('pointerup', handlePointerEnd);
+        window.addEventListener('pointercancel', handlePointerEnd);
 
         function updateJoystick(clientX, clientY) {
             const center = getJoystickCenter();
@@ -275,20 +239,14 @@
         }
 
         function resetJoystick() {
-            activeTouchId = null;
+            activePointerId = null;
             joystickInput.x = 0;
             joystickInput.y = 0;
             joystickStick.style.transform = 'translate(-50%, -50%)';
         }
 
-        // イベント登録
-        window.addEventListener('pointerdown', handlePointerDown);
-        window.addEventListener('pointermove', handlePointerMove);
-        window.addEventListener('pointerup', handlePointerUp);
-        window.addEventListener('pointercancel', handlePointerUp);
-
         // ============================================================
-        // モデルの移動・回転ロジック
+        // モデルの移動・回転
         // ============================================================
         function updateModelMovement(delta) {
             if (!targetModel) return;
