@@ -33,7 +33,6 @@
             z-index: 1;
         }
 
-
         /* ============================================================
            左下：アナログスティック
         ============================================================ */
@@ -56,7 +55,6 @@
             -webkit-user-select: none;
         }
 
-
         #joystick-base {
 
             position: absolute;
@@ -78,7 +76,6 @@
             user-select: none;
             -webkit-user-select: none;
         }
-
 
         #joystick-stick {
 
@@ -106,9 +103,7 @@
             transform: translate(0px, 0px);
         }
 
-
     </style>
-
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
@@ -116,12 +111,9 @@
 
 </head>
 
-
 <body>
 
-
     <div id="canvas-container"></div>
-
 
     <!-- ============================================================
          アナログスティック
@@ -135,16 +127,13 @@
 
     </div>
 
-
     <script>
-
 
         // ============================================================
         // Three.js 基本設定
         // ============================================================
 
         const scene = new THREE.Scene();
-
 
         const camera = new THREE.PerspectiveCamera(
             75,
@@ -153,17 +142,14 @@
             1000
         );
 
-
         const renderer = new THREE.WebGLRenderer({
             antialias: true
         });
-
 
         renderer.setSize(
             window.innerWidth,
             window.innerHeight
         );
-
 
         renderer.setPixelRatio(
             Math.min(
@@ -172,23 +158,18 @@
             )
         );
 
-
         renderer.outputEncoding =
             THREE.sRGBEncoding;
-
 
         renderer.toneMapping =
             THREE.ACESFilmicToneMapping;
 
-
         renderer.toneMappingExposure =
             1.15;
-
 
         document
             .getElementById('canvas-container')
             .appendChild(renderer.domElement);
-
 
         // ============================================================
         // ライト
@@ -201,13 +182,11 @@
             )
         );
 
-
         const dirLight =
             new THREE.DirectionalLight(
                 0xffffff,
                 3
             );
-
 
         dirLight.position.set(
             5,
@@ -215,9 +194,7 @@
             7.5
         );
 
-
         scene.add(dirLight);
-
 
         const fillLight =
             new THREE.DirectionalLight(
@@ -225,16 +202,13 @@
                 1.5
             );
 
-
         fillLight.position.set(
-                -5,
-                5,
-                -7
+            -5,
+            5,
+            -7
         );
 
-
         scene.add(fillLight);
-
 
         // ============================================================
         // 環境マップ
@@ -245,16 +219,13 @@
                 renderer
             );
 
-
         const environmentScene =
             new THREE.Scene();
-
 
         environmentScene.background =
             new THREE.Color(
                 0x202020
             );
-
 
         const environmentLight =
             new THREE.HemisphereLight(
@@ -263,21 +234,17 @@
                 2
             );
 
-
         environmentScene.add(
             environmentLight
         );
-
 
         const environmentTarget =
             pmremGenerator.fromScene(
                 environmentScene
             );
 
-
         scene.environment =
             environmentTarget.texture;
-
 
         // ============================================================
         // カメラ設定
@@ -287,7 +254,6 @@
 
         const cameraDistance = 1.6;
 
-
         let cameraSpherical =
             new THREE.Spherical(
                 cameraDistance,
@@ -295,13 +261,10 @@
                 0
             );
 
-
         const minPolarAngle = 0.1;
-
 
         const maxPolarAngle =
             Math.PI / 2 - 0.05;
-
 
         // ============================================================
         // モデル・アニメーション
@@ -317,10 +280,8 @@
 
         let currentAction = null;
 
-
         const clock =
             new THREE.Clock();
-
 
         // ============================================================
         // 移動・カメラ設定
@@ -332,14 +293,12 @@
 
         const cameraTouchSensitivity = 0.005;
 
-
         // ============================================================
         // GLTF Loader
         // ============================================================
 
         const loader =
             new THREE.GLTFLoader();
-
 
         // ============================================================
         // 背景モデル
@@ -354,16 +313,14 @@
                 bgModel =
                     gltf.scene;
 
-
                 bgModel.scale.set(
                     2,
                     2,
                     2
                 );
 
-
                 // ====================================================
-                // ワイヤーフレームを暗いグレーに固定
+                // 元のマテリアルの色を使用したワイヤーフレーム
                 // ====================================================
 
                 bgModel.traverse(
@@ -373,10 +330,8 @@
                             return;
                         }
 
-
                         const oldMaterial =
                             child.material;
-
 
                         const materials =
                             Array.isArray(
@@ -385,14 +340,11 @@
                                 ? oldMaterial
                                 : [oldMaterial];
 
-
                         const newMaterials =
                             materials.map(
                                 (material) => {
 
                                     return new THREE.MeshBasicMaterial({
-
-                                        color: 0x555555,
 
                                         wireframe: true,
 
@@ -400,13 +352,18 @@
                                             material.transparent,
 
                                         opacity:
-                                            material.opacity
+                                            material.opacity,
+
+                                        map:
+                                            material.map || null,
+
+                                        vertexColors:
+                                            material.vertexColors
 
                                     });
 
                                 }
                             );
-
 
                         child.material =
                             Array.isArray(
@@ -417,7 +374,6 @@
 
                     }
                 );
-
 
                 scene.add(bgModel);
 
@@ -436,7 +392,6 @@
 
         );
 
-
         // ============================================================
         // ターゲットモデル
         // ============================================================
@@ -450,13 +405,12 @@
                 targetModel =
                     gltf.scene;
 
-
                 targetModel.rotation.y =
                     Math.PI;
 
-
                 // ====================================================
-                // ct1.glb 金属化・暗色化
+                // ct1.glb
+                // 元の色を維持し、ごく僅かな光沢だけを追加
                 // ====================================================
 
                 targetModel.traverse(
@@ -466,14 +420,12 @@
                             return;
                         }
 
-
                         const materials =
                             Array.isArray(
                                 child.material
                             )
                                 ? child.material
                                 : [child.material];
-
 
                         materials.forEach(
                             (material) => {
@@ -482,47 +434,34 @@
                                     return;
                                 }
 
-
                                 // ------------------------------------
-                                // 金属
+                                // 金属感はほぼなくす
                                 // ------------------------------------
 
                                 material.metalness =
-                                    5;
-
+                                    0.05;
 
                                 // ------------------------------------
-                                // 表面の粗さ
+                                // 元の質感を維持しつつ
+                                // ごく僅かな光沢を残す
                                 // ------------------------------------
 
                                 material.roughness =
-                                    0.22;
-
+                                    0.85;
 
                                 // ------------------------------------
-                                // 環境反射
+                                // 環境反射を弱くする
                                 // ------------------------------------
 
                                 material.envMapIntensity =
-                                    0.8;
-
+                                    0.15;
 
                                 // ------------------------------------
-                                // 全体を暗くする
-                                //
-                                // 元の色を50%程度まで落とす
+                                // 元の色は変更しない
                                 // ------------------------------------
 
-                                if (
-                                    material.color
-                                ) {
-
-                                    material.color.multiplyScalar(
-                                        0.5
-                                    );
-
-                                }
-
+                                // material.color.multiplyScalar()
+                                // は使用しない
 
                                 // ------------------------------------
                                 // テクスチャ
@@ -540,7 +479,6 @@
 
                                 }
 
-
                                 material.needsUpdate =
                                     true;
 
@@ -550,9 +488,7 @@
                     }
                 );
 
-
                 scene.add(targetModel);
-
 
                 // ====================================================
                 // アニメーション
@@ -568,7 +504,6 @@
                             targetModel
                         );
 
-
                     gltf.animations.forEach(
                         (clip) => {
 
@@ -581,11 +516,9 @@
                         }
                     );
 
-
                     setAction(0);
 
                 }
-
 
                 updateCameraPosition();
 
@@ -604,7 +537,6 @@
 
         );
 
-
         // ============================================================
         // アニメーション切り替え
         // ============================================================
@@ -620,10 +552,8 @@
 
             }
 
-
             const nextAction =
                 actions[index];
-
 
             if (
                 currentAction !==
@@ -638,12 +568,10 @@
 
                 }
 
-
                 nextAction
                     .reset()
                     .fadeIn(0.2)
                     .play();
-
 
                 currentAction =
                     nextAction;
@@ -651,7 +579,6 @@
             }
 
         }
-
 
         // ============================================================
         // カメラ位置更新
@@ -662,7 +589,6 @@
             if (!targetModel) {
                 return;
             }
-
 
             const targetPosition =
                 targetModel.position
@@ -675,25 +601,21 @@
                         )
                     );
 
-
             const offset =
                 new THREE.Vector3()
                     .setFromSpherical(
                         cameraSpherical
                     );
 
-
             camera.position
                 .copy(targetPosition)
                 .add(offset);
-
 
             camera.lookAt(
                 targetPosition
             );
 
         }
-
 
         // ============================================================
         // アナログスティック
@@ -704,12 +626,10 @@
                 'joystick-container'
             );
 
-
         const joystickStick =
             document.getElementById(
                 'joystick-stick'
             );
-
 
         let joystickPointerId = null;
 
@@ -717,11 +637,9 @@
 
         let joystickY = 0;
 
-
         const joystickRadius = 52;
 
         const joystickDeadZone = 0.08;
-
 
         // ------------------------------------------------------------
         // スティック位置更新
@@ -735,33 +653,27 @@
             const rect =
                 joystickContainer.getBoundingClientRect();
 
-
             const centerX =
                 rect.left +
                 rect.width / 2;
-
 
             const centerY =
                 rect.top +
                 rect.height / 2;
 
-
             let dx =
                 clientX -
                 centerX;
 
-
             let dy =
                 clientY -
                 centerY;
-
 
             const distance =
                 Math.hypot(
                     dx,
                     dy
                 );
-
 
             if (
                 distance >
@@ -778,27 +690,22 @@
 
             }
 
-
             joystickStick.style.transform =
                 `translate(${dx}px, ${dy}px)`;
-
 
             joystickX =
                 dx /
                 joystickRadius;
 
-
             joystickY =
                 dy /
                 joystickRadius;
-
 
             const normalizedDistance =
                 Math.hypot(
                     joystickX,
                     joystickY
                 );
-
 
             if (
                 normalizedDistance <
@@ -813,7 +720,6 @@
 
         }
 
-
         // ------------------------------------------------------------
         // スティックリセット
         // ------------------------------------------------------------
@@ -823,17 +729,14 @@
             joystickPointerId =
                 null;
 
-
             joystickX = 0;
 
             joystickY = 0;
-
 
             joystickStick.style.transform =
                 'translate(0px, 0px)';
 
         }
-
 
         // ------------------------------------------------------------
         // スティック開始
@@ -844,7 +747,6 @@
             e.preventDefault();
             e.stopPropagation();
 
-
             if (
                 joystickPointerId !== null
             ) {
@@ -853,10 +755,8 @@
 
             }
 
-
             joystickPointerId =
                 e.pointerId;
-
 
             try {
 
@@ -866,14 +766,12 @@
 
             } catch (err) {}
 
-
             updateJoystick(
                 e.clientX,
                 e.clientY
             );
 
         }
-
 
         // ------------------------------------------------------------
         // スティック移動
@@ -890,10 +788,8 @@
 
             }
 
-
             e.preventDefault();
             e.stopPropagation();
-
 
             updateJoystick(
                 e.clientX,
@@ -901,7 +797,6 @@
             );
 
         }
-
 
         // ------------------------------------------------------------
         // スティック終了
@@ -918,10 +813,8 @@
 
             }
 
-
             e.preventDefault();
             e.stopPropagation();
-
 
             try {
 
@@ -941,11 +834,9 @@
 
             } catch (err) {}
 
-
             resetJoystick();
 
         }
-
 
         joystickContainer.addEventListener(
             'pointerdown',
@@ -955,7 +846,6 @@
             }
         );
 
-
         joystickContainer.addEventListener(
             'pointermove',
             handleJoystickMove,
@@ -963,7 +853,6 @@
                 passive: false
             }
         );
-
 
         joystickContainer.addEventListener(
             'pointerup',
@@ -973,7 +862,6 @@
             }
         );
 
-
         joystickContainer.addEventListener(
             'pointercancel',
             handleJoystickEnd,
@@ -981,7 +869,6 @@
                 passive: false
             }
         );
-
 
         // ============================================================
         // キーボード操作
@@ -996,7 +883,6 @@
 
         };
 
-
         window.addEventListener(
             'keydown',
             (e) => {
@@ -1010,7 +896,6 @@
 
                 }
 
-
                 if (
                     e.key === 'ArrowDown' ||
                     e.key === 's'
@@ -1020,7 +905,6 @@
 
                 }
 
-
                 if (
                     e.key === 'ArrowLeft' ||
                     e.key === 'a'
@@ -1029,7 +913,6 @@
                     keyState.left = true;
 
                 }
-
 
                 if (
                     e.key === 'ArrowRight' ||
@@ -1042,7 +925,6 @@
 
             }
         );
-
 
         window.addEventListener(
             'keyup',
@@ -1057,7 +939,6 @@
 
                 }
 
-
                 if (
                     e.key === 'ArrowDown' ||
                     e.key === 's'
@@ -1067,7 +948,6 @@
 
                 }
 
-
                 if (
                     e.key === 'ArrowLeft' ||
                     e.key === 'a'
@@ -1076,7 +956,6 @@
                     keyState.left = false;
 
                 }
-
 
                 if (
                     e.key === 'ArrowRight' ||
@@ -1090,7 +969,6 @@
             }
         );
 
-
         // ============================================================
         // カメラ操作
         // ============================================================
@@ -1102,7 +980,6 @@
         let previousTouchX = 0;
 
         let previousTouchY = 0;
-
 
         // ------------------------------------------------------------
         // カメラ開始
@@ -1120,13 +997,11 @@
 
             }
 
-
             if (isCameraDragging) {
 
                 return;
 
             }
-
 
             if (
                 e.clientX >=
@@ -1135,22 +1010,17 @@
 
                 e.preventDefault();
 
-
                 isCameraDragging =
                     true;
-
 
                 cameraPointerId =
                     e.pointerId;
 
-
                 previousTouchX =
                     e.clientX;
 
-
                 previousTouchY =
                     e.clientY;
-
 
                 try {
 
@@ -1165,7 +1035,6 @@
 
         }
 
-
         // ------------------------------------------------------------
         // カメラ移動
         // ------------------------------------------------------------
@@ -1178,7 +1047,6 @@
 
             }
 
-
             if (
                 e.pointerId !==
                 cameraPointerId
@@ -1188,29 +1056,23 @@
 
             }
 
-
             e.preventDefault();
-
 
             const deltaX =
                 e.clientX -
                 previousTouchX;
 
-
             const deltaY =
                 e.clientY -
                 previousTouchY;
-
 
             cameraSpherical.theta -=
                 deltaX *
                 cameraTouchSensitivity;
 
-
             cameraSpherical.phi -=
                 deltaY *
                 cameraTouchSensitivity;
-
 
             cameraSpherical.phi =
                 Math.max(
@@ -1221,16 +1083,13 @@
                     )
                 );
 
-
             previousTouchX =
                 e.clientX;
-
 
             previousTouchY =
                 e.clientY;
 
         }
-
 
         // ------------------------------------------------------------
         // カメラ終了
@@ -1244,7 +1103,6 @@
 
             }
 
-
             if (
                 e.pointerId !==
                 cameraPointerId
@@ -1254,13 +1112,10 @@
 
             }
 
-
             e.preventDefault();
-
 
             isCameraDragging =
                 false;
-
 
             try {
 
@@ -1280,12 +1135,10 @@
 
             } catch (err) {}
 
-
             cameraPointerId =
                 null;
 
         }
-
 
         window.addEventListener(
             'pointerdown',
@@ -1295,7 +1148,6 @@
             }
         );
 
-
         window.addEventListener(
             'pointermove',
             handleRightScreenMove,
@@ -1303,7 +1155,6 @@
                 passive: false
             }
         );
-
 
         window.addEventListener(
             'pointerup',
@@ -1313,7 +1164,6 @@
             }
         );
 
-
         window.addEventListener(
             'pointercancel',
             handleRightScreenEnd,
@@ -1321,7 +1171,6 @@
                 passive: false
             }
         );
-
 
         // ============================================================
         // キャラクター移動
@@ -1335,22 +1184,17 @@
 
             }
 
-
             let moveX =
                 joystickX;
-
 
             let moveY =
                 joystickY;
 
-
             let currentSpeed = 0;
-
 
             let keyboardX = 0;
 
             let keyboardY = 0;
-
 
             if (keyState.right) {
 
@@ -1358,13 +1202,11 @@
 
             }
 
-
             if (keyState.left) {
 
                 keyboardX -= 1;
 
             }
-
 
             if (keyState.up) {
 
@@ -1372,13 +1214,11 @@
 
             }
 
-
             if (keyState.down) {
 
                 keyboardY += 1;
 
             }
-
 
             if (
                 keyboardX !== 0 ||
@@ -1391,16 +1231,13 @@
                         keyboardY
                     );
 
-
                 moveX =
                     keyboardX /
                     length;
 
-
                 moveY =
                     keyboardY /
                     length;
-
 
                 currentSpeed =
                     maxMoveSpeed;
@@ -1417,7 +1254,6 @@
                             moveY
                         )
                     );
-
 
                 if (
                     stickStrength > 0
@@ -1437,10 +1273,8 @@
 
             }
 
-
             const isMoving =
                 currentSpeed > 0;
-
 
             if (isMoving) {
 
@@ -1452,24 +1286,19 @@
 
                 }
 
-
                 const cameraForward =
                     new THREE.Vector3();
-
 
                 camera.getWorldDirection(
                     cameraForward
                 );
 
-
                 cameraForward.y = 0;
 
                 cameraForward.normalize();
 
-
                 const cameraRight =
                     new THREE.Vector3();
-
 
                 cameraRight.crossVectors(
                     cameraForward,
@@ -1480,10 +1309,8 @@
                     )
                 ).normalize();
 
-
                 const moveDirection =
                     new THREE.Vector3();
-
 
                 moveDirection
                     .addScaledVector(
@@ -1495,7 +1322,6 @@
                         -moveY
                     );
 
-
                 if (
                     moveDirection.lengthSq() > 0
                 ) {
@@ -1504,13 +1330,11 @@
 
                 }
 
-
                 targetModel.position
                     .addScaledVector(
                         moveDirection,
                         currentSpeed * delta
                     );
-
 
                 const targetAngle =
                     Math.atan2(
@@ -1518,10 +1342,8 @@
                         moveDirection.z
                     );
 
-
                 const targetQuaternion =
                     new THREE.Quaternion();
-
 
                 targetQuaternion.setFromAxisAngle(
                     new THREE.Vector3(
@@ -1532,14 +1354,12 @@
                     targetAngle
                 );
 
-
                 targetModel.quaternion.slerp(
                     targetQuaternion,
                     rotationSpeed * delta
                 );
 
             }
-
 
             else {
 
@@ -1555,7 +1375,6 @@
 
         }
 
-
         // ============================================================
         // メインループ
         // ============================================================
@@ -1566,15 +1385,12 @@
                 animate
             );
 
-
             const delta =
                 clock.getDelta();
-
 
             updateModelMovement(
                 delta
             );
-
 
             if (mixer) {
 
@@ -1584,9 +1400,7 @@
 
             }
 
-
             updateCameraPosition();
-
 
             renderer.render(
                 scene,
@@ -1595,9 +1409,7 @@
 
         }
 
-
         animate();
-
 
         // ============================================================
         // リサイズ
@@ -1611,9 +1423,7 @@
                     window.innerWidth /
                     window.innerHeight;
 
-
                 camera.updateProjectionMatrix();
-
 
                 renderer.setSize(
                     window.innerWidth,
@@ -1622,7 +1432,6 @@
 
             }
         );
-
 
     </script>
 
