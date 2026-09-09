@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D GLB Viewer - Joystick Control</title>
+    <title>3D GLB Viewer - Joystick & Free Camera Control</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { width: 100vw; height: 100vh; overflow: hidden; background-color: #1a1a1a; touch-action: none; }
@@ -207,6 +207,9 @@
         const maxRadius = 40; // スティックの可動半径（px）
 
         function handleJoystickStart(e) {
+            // スティック操作領域内ではOrbitControls（視点回転）にイベントを渡さない
+            e.stopPropagation();
+
             if (activeTouchId !== null) return;
             const touch = e.changedTouches ? e.changedTouches[0] : e;
             activeTouchId = touch.identifier !== undefined ? touch.identifier : 'mouse';
@@ -274,13 +277,25 @@
             joystickStick.style.transform = 'translate(-50%, -50%)';
         }
 
-        // ジョイスティックイベントのリスナー登録（タッチ・マウス両対応）
+        // ジョイスティックエリアでのイベントバブリング（伝播）をブロックする関数
+        function preventCameraControl(e) {
+            e.stopPropagation();
+        }
+
+        // ジョイスティック領域のイベント登録
         joystickContainer.addEventListener('touchstart', handleJoystickStart, { passive: false });
+        joystickContainer.addEventListener('touchmove', preventCameraControl, { passive: false });
+        joystickContainer.addEventListener('touchend', preventCameraControl);
+
+        joystickContainer.addEventListener('mousedown', handleJoystickStart);
+        joystickContainer.addEventListener('mousemove', preventCameraControl);
+        joystickContainer.addEventListener('mouseup', preventCameraControl);
+
+        // グローバル（画面全体）での追達イベント処理
         window.addEventListener('touchmove', handleJoystickMove, { passive: false });
         window.addEventListener('touchend', handleJoystickEnd);
         window.addEventListener('touchcancel', handleJoystickEnd);
 
-        joystickContainer.addEventListener('mousedown', handleJoystickStart);
         window.addEventListener('mousemove', handleJoystickMove);
         window.addEventListener('mouseup', handleJoystickEnd);
 
