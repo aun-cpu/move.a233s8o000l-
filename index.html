@@ -3,51 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>3D GLB Viewer - Simultaneous Multi-touch</title>
+    <title>3D GLB Viewer - D-Pad Control</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { width: 100vw; height: 100vh; overflow: hidden; background-color: #1a1a1a; touch-action: none; }
         #canvas-container { width: 100%; height: 100%; position: absolute; top:0; left:0; z-index: 1; }
 
-        /* 視点操作（カメラ制御）専用の右側タッチエリア */
+        /* 視点操作（カメラ制御）専用エリア（画面右側60%） */
         #camera-touch-zone {
             position: absolute;
             top: 0;
             right: 0;
-            width: 60%; /* 画面右側60%をカメラ操作エリアに設定 */
+            width: 60%;
             height: 100%;
             z-index: 10;
             touch-action: none;
         }
 
-        /* 左下固定のジョイスティックUI */
-        #joystick-container {
+        /* 左下に配置する方向キー（D-Pad）コンテナ */
+        #dpad-container {
             position: absolute;
-            bottom: 40px;
-            left: 40px;
-            width: 120px;
-            height: 120px;
-            background: rgba(255, 255, 255, 0.15);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
+            bottom: 30px;
+            left: 30px;
+            width: 150px;
+            height: 150px;
+            z-index: 20;
             touch-action: none;
             user-select: none;
-            z-index: 20; /* カメラエリアより前面に配置 */
-            display: block; 
+            -webkit-user-select: none;
         }
 
-        #joystick-stick {
+        /* 方向ボタンの共通スタイル */
+        .btn-arrow {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 50px;
-            height: 50px;
-            background: rgba(255, 255, 255, 0.6);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            width: 46px;
+            height: 46px;
+            background: rgba(255, 255, 255, 0.25);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 20px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: pointer;
+            transition: background 0.1s;
         }
+
+        /* ボタン押下時の視覚効果 */
+        .btn-arrow:active, .btn-arrow.active {
+            background: rgba(255, 255, 255, 0.6);
+        }
+
+        /* 上下左右の個別配置 */
+        #btn-up    { top: 0; left: 52px; }
+        #btn-down  { bottom: 0; left: 52px; }
+        #btn-left  { top: 52px; left: 0; }
+        #btn-right { top: 52px; right: 0; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -56,12 +72,15 @@
 <body>
     <div id="canvas-container"></div>
     
-    <!-- カメラ操作用の領域を独立させる -->
+    <!-- 視点操作用エリア -->
     <div id="camera-touch-zone"></div>
 
-    <!-- ジョイスティック -->
-    <div id="joystick-container">
-        <div id="joystick-stick"></div>
+    <!-- 4方向矢印ボタンUI -->
+    <div id="dpad-container">
+        <div id="btn-up" class="btn-arrow">▲</div>
+        <div id="btn-left" class="btn-arrow">◀</div>
+        <div id="btn-right" class="btn-arrow">▶</div>
+        <div id="btn-down" class="btn-arrow">▼</div>
     </div>
 
     <script>
@@ -73,12 +92,11 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        // 【改善の重要ポイント】
-        // OrbitControls に Canvas全体ではなく「右側の透明DIV(#camera-touch-zone)」をバインドする
+        // OrbitControls を右側領域(#camera-touch-zone)だけにバインド
         const touchZone = document.getElementById('camera-touch-zone');
         const controls = new THREE.OrbitControls(camera, touchZone);
         controls.enableDamping = true;
-        controls.enableZoom = false; // ズーム禁止
+        controls.enableZoom = false; // ズーム機能オフ
 
         scene.add(new THREE.AmbientLight(0xffffff, 1.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 2);
@@ -177,76 +195,73 @@
         }
 
         // ============================================================
-        // ジョイスティック処理（独立要素としてイベント制御）
+        // 矢印ボタン（方向キー）の入力処理
         // ============================================================
-        const joystickContainer = document.getElementById('joystick-container');
-        const joystickStick = document.getElementById('joystick-stick');
-        
-        let joystickInput = { x: 0, y: 0 };
-        let activePointerId = null;
-        const maxRadius = 40;
-
-        function getJoystickCenter() {
-            const rect = joystickContainer.getBoundingClientRect();
-            return {
-                x: rect.left + rect.width / 2,
-                y: rect.top + rect.height / 2
-            };
-        }
-
-        joystickContainer.addEventListener('pointerdown', (e) => {
-            e.stopPropagation(); // カメラ操作側へイベントを行かせない
-            activePointerId = e.pointerId;
-            joystickContainer.setPointerCapture(e.pointerId); // 指が枠外に出ても追尾
-            updateJoystick(e.clientX, e.clientY);
-        });
-
-        joystickContainer.addEventListener('pointermove', (e) => {
-            if (e.pointerId === activePointerId) {
-                updateJoystick(e.clientX, e.clientY);
-            }
-        });
-
-        const handlePointerEnd = (e) => {
-            if (e.pointerId === activePointerId) {
-                resetJoystick();
-            }
+        const keyState = {
+            up: false,
+            down: false,
+            left: false,
+            right: false
         };
 
-        joystickContainer.addEventListener('pointerup', handlePointerEnd);
-        joystickContainer.addEventListener('pointercancel', handlePointerEnd);
+        function bindButtonEvents(elementId, direction) {
+            const btn = document.getElementById(elementId);
 
-        function updateJoystick(clientX, clientY) {
-            const center = getJoystickCenter();
-            let dx = clientX - center.x;
-            let dy = clientY - center.y;
-            const distance = Math.hypot(dx, dy);
+            const startPress = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                keyState[direction] = true;
+                btn.classList.add('active');
+            };
 
-            if (distance > maxRadius) {
-                dx = (dx / distance) * maxRadius;
-                dy = (dy / distance) * maxRadius;
-            }
+            const endPress = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                keyState[direction] = false;
+                btn.classList.remove('active');
+            };
 
-            joystickStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-
-            joystickInput.x = dx / maxRadius;
-            joystickInput.y = dy / maxRadius;
+            btn.addEventListener('pointerdown', startPress);
+            btn.addEventListener('pointerup', endPress);
+            btn.addEventListener('pointercancel', endPress);
+            btn.addEventListener('pointerleave', endPress);
         }
 
-        function resetJoystick() {
-            activePointerId = null;
-            joystickInput.x = 0;
-            joystickInput.y = 0;
-            joystickStick.style.transform = 'translate(-50%, -50%)';
-        }
+        bindButtonEvents('btn-up', 'up');
+        bindButtonEvents('btn-down', 'down');
+        bindButtonEvents('btn-left', 'left');
+        bindButtonEvents('btn-right', 'right');
+
+        // キーボード（PC用）の互換処理
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'w') keyState.up = true;
+            if (e.key === 'ArrowDown' || e.key === 's') keyState.down = true;
+            if (e.key === 'ArrowLeft' || e.key === 'a') keyState.left = true;
+            if (e.key === 'ArrowRight' || e.key === 'd') keyState.right = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'w') keyState.up = false;
+            if (e.key === 'ArrowDown' || e.key === 's') keyState.down = false;
+            if (e.key === 'ArrowLeft' || e.key === 'a') keyState.left = false;
+            if (e.key === 'ArrowRight' || e.key === 'd') keyState.right = false;
+        });
 
         // ============================================================
-        // モデルの移動・回転
+        // モデルの移動・回転計算
         // ============================================================
         function updateModelMovement(delta) {
             if (!targetModel) return;
 
-            const isMoving = Math.abs(joystickInput.x) > 0.05 || Math.abs(joystickInput.y) > 0.05;
+            let inputX = 0;
+            let inputY = 0;
+
+            if (keyState.right) inputX += 1;
+            if (keyState.left)  inputX -= 1;
+            if (keyState.up)    inputY -= 1; // 画面上方向（前進）
+            if (keyState.down)  inputY += 1; // 画面下方向（後退）
+
+            const isMoving = inputX !== 0 || inputY !== 0;
 
             if (isMoving) {
                 if (actions.length > 1) {
@@ -262,12 +277,11 @@
                 cameraRight.crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
 
                 const moveDirection = new THREE.Vector3()
-                    .addScaledVector(cameraRight, joystickInput.x)
-                    .addScaledVector(cameraForward, -joystickInput.y)
+                    .addScaledVector(cameraRight, inputX)
+                    .addScaledVector(cameraForward, -inputY)
                     .normalize();
 
-                const inputLength = Math.min(1.0, Math.hypot(joystickInput.x, joystickInput.y));
-                targetModel.position.addScaledVector(moveDirection, moveSpeed * inputLength * delta);
+                targetModel.position.addScaledVector(moveDirection, moveSpeed * delta);
 
                 const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
                 const targetQuaternion = new THREE.Quaternion();
