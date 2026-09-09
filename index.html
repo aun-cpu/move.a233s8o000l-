@@ -276,7 +276,8 @@
 
         let mixer = null;
 
-        let actions = [];
+        // idle / dash を名前で保持
+        let actions = {};
 
         let currentAction = null;
 
@@ -507,16 +508,61 @@
                     gltf.animations.forEach(
                         (clip) => {
 
-                            actions.push(
+                            const action =
                                 mixer.clipAction(
                                     clip
-                                )
+                                );
+
+                            // ------------------------------------
+                            // アニメーションを無限ループ
+                            // ------------------------------------
+
+                            action.setLoop(
+                                THREE.LoopRepeat,
+                                Infinity
                             );
+
+                            action.clampWhenFinished =
+                                false;
+
+                            // ------------------------------------
+                            // 名前で idle / dash を取得
+                            // 大文字・小文字は区別しない
+                            // ------------------------------------
+
+                            const animationName =
+                                clip.name
+                                    .trim()
+                                    .toLowerCase();
+
+                            if (
+                                animationName ===
+                                'idle'
+                            ) {
+
+                                actions.idle =
+                                    action;
+
+                            }
+
+                            if (
+                                animationName ===
+                                'dash'
+                            ) {
+
+                                actions.dash =
+                                    action;
+
+                            }
 
                         }
                     );
 
-                    setAction(0);
+                    // ------------------------------------
+                    // 初期状態は idle
+                    // ------------------------------------
+
+                    setAction('idle');
 
                 }
 
@@ -541,11 +587,11 @@
         // アニメーション切り替え
         // ============================================================
 
-        function setAction(index) {
+        function setAction(name) {
 
             if (
                 !mixer ||
-                !actions[index]
+                !actions[name]
             ) {
 
                 return;
@@ -553,7 +599,7 @@
             }
 
             const nextAction =
-                actions[index];
+                actions[name];
 
             if (
                 currentAction !==
@@ -570,6 +616,10 @@
 
                 nextAction
                     .reset()
+                    .setLoop(
+                        THREE.LoopRepeat,
+                        Infinity
+                    )
                     .fadeIn(0.2)
                     .play();
 
@@ -1278,11 +1328,15 @@
 
             if (isMoving) {
 
+                // ------------------------------------
+                // 移動中は dash
+                // ------------------------------------
+
                 if (
-                    actions.length > 1
+                    actions.dash
                 ) {
 
-                    setAction(1);
+                    setAction('dash');
 
                 }
 
@@ -1363,11 +1417,15 @@
 
             else {
 
+                // ------------------------------------
+                // 停止中は idle
+                // ------------------------------------
+
                 if (
-                    actions.length > 0
+                    actions.idle
                 ) {
 
-                    setAction(0);
+                    setAction('idle');
 
                 }
 
