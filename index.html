@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
 
     <meta name="viewport"
-          content="width=device-width, initial-scale=1.0, user-scalable=no">
+          content="width=device-width, initial-scale=1.0">
 
-    <title>3D GLB Viewer</title>
+    <title>ct1 Test</title>
 
     <style>
 
@@ -20,64 +20,7 @@
             width: 100vw;
             height: 100vh;
             overflow: hidden;
-            background: #1a1a1a;
-            touch-action: none;
-        }
-
-        #canvas-container {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            left: 0;
-            top: 0;
-        }
-
-        #joystick-container {
-            position: absolute;
-            left: 30px;
-            bottom: 30px;
-
-            width: 150px;
-            height: 150px;
-
-            z-index: 20;
-
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-
-        #joystick-base {
-            position: absolute;
-            left: 0;
-            top: 0;
-
-            width: 150px;
-            height: 150px;
-
-            border-radius: 50%;
-
-            background: rgba(255,255,255,0.15);
-            border: 2px solid rgba(255,255,255,0.35);
-        }
-
-        #joystick-stick {
-            position: absolute;
-
-            left: 52px;
-            top: 52px;
-
-            width: 46px;
-            height: 46px;
-
-            border-radius: 50%;
-
-            background: rgba(255,255,255,0.45);
-            border: 2px solid rgba(255,255,255,0.65);
-
-            pointer-events: none;
-
-            transform: translate(0px, 0px);
+            background: #222;
         }
 
     </style>
@@ -90,32 +33,43 @@
 
 <body>
 
-<div id="canvas-container"></div>
-
-<div id="joystick-container">
-
-    <div id="joystick-base"></div>
-
-    <div id="joystick-stick"></div>
-
-</div>
-
 <script>
 
+    console.log("===== TEST START =====");
+
     // ============================================================
-    // Three.js
+    // Scene
     // ============================================================
 
     const scene =
         new THREE.Scene();
 
+    scene.background =
+        new THREE.Color(0x222222);
+
+
+    // ============================================================
+    // Camera
+    // ============================================================
+
     const camera =
         new THREE.PerspectiveCamera(
-            75,
+            60,
             window.innerWidth / window.innerHeight,
-            0.01,
-            1000
+            0.001,
+            10000
         );
+
+    camera.position.set(
+        0,
+        1,
+        5
+    );
+
+
+    // ============================================================
+    // Renderer
+    // ============================================================
 
     const renderer =
         new THREE.WebGLRenderer({
@@ -137,90 +91,41 @@
     renderer.outputEncoding =
         THREE.sRGBEncoding;
 
-    renderer.toneMapping =
-        THREE.ACESFilmicToneMapping;
-
-    renderer.toneMappingExposure =
-        1.15;
-
-    document
-        .getElementById('canvas-container')
-        .appendChild(renderer.domElement);
-
-
-    // ============================================================
-    // ライト
-    // ============================================================
-
-    scene.add(
-        new THREE.AmbientLight(
-            0xffffff,
-            1.2
-        )
+    document.body.appendChild(
+        renderer.domElement
     );
 
-    const dirLight =
-        new THREE.DirectionalLight(
+
+    // ============================================================
+    // Light
+    // ============================================================
+
+    const ambient =
+        new THREE.AmbientLight(
             0xffffff,
             3
         );
 
-    dirLight.position.set(
-        5,
-        10,
-        7.5
+    scene.add(
+        ambient
     );
 
-    scene.add(dirLight);
 
-
-    const fillLight =
+    const directional =
         new THREE.DirectionalLight(
             0xffffff,
-            1.5
+            5
         );
 
-    fillLight.position.set(
-        -5,
+    directional.position.set(
         5,
-        -7
+        10,
+        5
     );
 
-    scene.add(fillLight);
-
-
-    // ============================================================
-    // 環境
-    // ============================================================
-
-    const pmremGenerator =
-        new THREE.PMREMGenerator(
-            renderer
-        );
-
-    const environmentScene =
-        new THREE.Scene();
-
-    environmentScene.background =
-        new THREE.Color(
-            0x202020
-        );
-
-    environmentScene.add(
-        new THREE.HemisphereLight(
-            0xffffff,
-            0x222222,
-            2
-        )
+    scene.add(
+        directional
     );
-
-    const environmentTarget =
-        pmremGenerator.fromScene(
-            environmentScene
-        );
-
-    scene.environment =
-        environmentTarget.texture;
 
 
     // ============================================================
@@ -231,149 +136,108 @@
         new THREE.GLTFLoader();
 
 
-    // ============================================================
-    // 背景
-    // ============================================================
+    console.log(
+        "ct1.glb の読み込み開始"
+    );
+
 
     loader.load(
 
-        './bg.glb',
+        "./ct1.glb",
 
         function(gltf) {
 
             console.log(
-                'bg.glb 読み込み成功'
+                "★★★★★★★★★★★★★★★★"
             );
 
-            const bgModel =
+            console.log(
+                "ct1.glb 読み込み成功"
+            );
+
+            console.log(
+                "★★★★★★★★★★★★★★★★"
+            );
+
+
+            const model =
                 gltf.scene;
 
-            bgModel.scale.set(
-                2,
-                2,
-                2
+
+            // ====================================================
+            // モデルをシーンに追加
+            // ====================================================
+
+            scene.add(
+                model
             );
 
-            bgModel.traverse(
-                function(child) {
 
-                    if (!child.isMesh) {
-                        return;
+            // ====================================================
+            // 全Mesh確認
+            // ====================================================
+
+            let meshCount = 0;
+
+            model.traverse(
+                function(object) {
+
+                    console.log(
+                        "OBJECT:",
+                        object.type,
+                        object.name
+                    );
+
+                    if (
+                        object.isMesh
+                    ) {
+
+                        meshCount++;
+
+                        object.visible =
+                            true;
+
+                        object.frustumCulled =
+                            false;
+
+                        if (
+                            object.material
+                        ) {
+
+                            object.material.visible =
+                                true;
+
+                        }
+
                     }
-
-                    const oldMaterial =
-                        child.material;
-
-                    const materials =
-                        Array.isArray(oldMaterial)
-                            ? oldMaterial
-                            : [oldMaterial];
-
-                    const newMaterials =
-                        materials.map(
-                            function(material) {
-
-                                return new THREE.MeshBasicMaterial({
-
-                                    wireframe: true,
-
-                                    transparent:
-                                        material.transparent,
-
-                                    opacity:
-                                        material.opacity,
-
-                                    map:
-                                        material.map || null,
-
-                                    vertexColors:
-                                        material.vertexColors
-
-                                });
-
-                            }
-                        );
-
-                    child.material =
-                        Array.isArray(oldMaterial)
-                            ? newMaterials
-                            : newMaterials[0];
 
                 }
             );
 
-            scene.add(
-                bgModel
-            );
-
-        },
-
-        undefined,
-
-        function(error) {
-
-            console.error(
-                'bg.glb 読み込みエラー:',
-                error
-            );
-
-        }
-
-    );
-
-
-    // ============================================================
-    // ct1
-    // ============================================================
-
-    let targetModel = null;
-
-    let mixer = null;
-
-    let actions = {};
-
-    let currentAction = null;
-
-
-    loader.load(
-
-        './ct1.glb',
-
-        function(gltf) {
 
             console.log(
-                '================================'
+                "Mesh数:",
+                meshCount
             );
-
-            console.log(
-                'ct1.glb 読み込み成功'
-            );
-
-            console.log(
-                '================================'
-            );
-
-            targetModel =
-                gltf.scene;
 
 
             // ====================================================
-            // ct1の初期位置
+            // 初期変換をリセット
             // ====================================================
 
-            targetModel.position.set(
+            model.position.set(
                 0,
                 0,
                 0
             );
 
-            targetModel.rotation.set(
+            model.rotation.set(
                 0,
-                Math.PI,
+                0,
                 0
             );
 
-            targetModel.scale.set(
+            model.scale.set(
                 1,
                 1,
                 1
@@ -381,92 +245,24 @@
 
 
             // ====================================================
-            // モデル内部を確認
+            // 行列更新
             // ====================================================
 
-            targetModel.traverse(
-                function(child) {
-
-                    console.log(
-                        'ct1:',
-                        child.type,
-                        child.name
-                    );
-
-                    if (!child.isMesh) {
-                        return;
-                    }
-
-                    const materials =
-                        Array.isArray(
-                            child.material
-                        )
-                            ? child.material
-                            : [child.material];
-
-                    materials.forEach(
-                        function(material) {
-
-                            if (!material) {
-                                return;
-                            }
-
-                            material.metalness =
-                                0.05;
-
-                            material.roughness =
-                                0.85;
-
-                            material.envMapIntensity =
-                                0.15;
-
-                            if (material.map) {
-
-                                material.map.encoding =
-                                    THREE.sRGBEncoding;
-
-                                material.map.needsUpdate =
-                                    true;
-
-                            }
-
-                            material.needsUpdate =
-                                true;
-
-                        }
-                    );
-
-                }
-            );
-
-
-            // ====================================================
-            // シーンに追加
-            // ====================================================
-
-            scene.add(
-                targetModel
-            );
-
-
-            // ====================================================
-            // ワールド行列更新
-            // ====================================================
-
-            targetModel.updateMatrixWorld(
+            scene.updateMatrixWorld(
                 true
             );
 
 
             // ====================================================
-            // バウンディングボックス確認
+            // BoundingBox
             // ====================================================
 
             const box =
                 new THREE.Box3()
                     .setFromObject(
-                        targetModel
+                        model
                     );
+
 
             const size =
                 new THREE.Vector3();
@@ -474,115 +270,41 @@
             const center =
                 new THREE.Vector3();
 
-            box.getSize(size);
 
-            box.getCenter(center);
-
-
-            console.log(
-                'ct1 サイズ:',
+            box.getSize(
                 size
             );
 
-            console.log(
-                'ct1 中心:',
+            box.getCenter(
                 center
             );
 
+
             console.log(
-                'ct1 position:',
-                targetModel.position
+                "BoundingBox:",
+                box
             );
 
             console.log(
-                'ct1 scale:',
-                targetModel.scale
+                "モデルサイズ:",
+                size.x,
+                size.y,
+                size.z
+            );
+
+            console.log(
+                "モデル中心:",
+                center.x,
+                center.y,
+                center.z
             );
 
 
             // ====================================================
-            // アニメーション
+            // 自動的にモデルの正面へカメラ配置
             // ====================================================
 
-            if (
-                gltf.animations &&
-                gltf.animations.length > 0
-            ) {
-
-                console.log(
-                    'アニメーション数:',
-                    gltf.animations.length
-                );
-
-                mixer =
-                    new THREE.AnimationMixer(
-                        targetModel
-                    );
-
-                gltf.animations.forEach(
-                    function(clip) {
-
-                        console.log(
-                            'animation:',
-                            clip.name
-                        );
-
-                        const action =
-                            mixer.clipAction(
-                                clip
-                            );
-
-                        action.setLoop(
-                            THREE.LoopRepeat,
-                            Infinity
-                        );
-
-                        const animationName =
-                            clip.name
-                                .trim()
-                                .toLowerCase();
-
-                        if (
-                            animationName ===
-                            'idle'
-                        ) {
-
-                            actions.idle =
-                                action;
-
-                        }
-
-                        if (
-                            animationName ===
-                            'dash'
-                        ) {
-
-                            actions.dash =
-                                action;
-
-                        }
-
-                    }
-                );
-
-                setAction(
-                    'idle'
-                );
-
-            }
-
-
-            // ====================================================
-            // カメラをct1に合わせる
-            // ====================================================
-
-            const cameraTarget =
-                center.clone();
-
-            cameraTarget.y += 0.5;
-
-
-            const modelSize =
+            const maxSize =
                 Math.max(
                     size.x,
                     size.y,
@@ -590,50 +312,73 @@
                 );
 
 
-            const distance =
-                Math.max(
-                    modelSize * 2,
-                    2
-                );
+            let distance =
+                maxSize * 2;
+
+
+            if (
+                !isFinite(distance) ||
+                distance <= 0
+            ) {
+
+                distance = 5;
+
+            }
 
 
             camera.position.set(
-                cameraTarget.x,
-                cameraTarget.y + modelSize * 0.5,
-                cameraTarget.z + distance
+                center.x,
+                center.y,
+                center.z + distance
             );
 
 
             camera.lookAt(
-                cameraTarget
+                center
             );
 
 
             console.log(
-                'ct1表示処理完了'
+                "カメラ位置:",
+                camera.position
             );
 
-        },
-
-        function(progress) {
 
             console.log(
-                'ct1.glb 読み込み中:',
-                progress.loaded,
-                '/',
-                progress.total
+                "表示処理完了"
             );
 
         },
+
+
+        // ========================================================
+        // Loading Progress
+        // ========================================================
+
+        function(xhr) {
+
+            console.log(
+                "読み込み:",
+                xhr.loaded,
+                "/",
+                xhr.total
+            );
+
+        },
+
+
+        // ========================================================
+        // Error
+        // ========================================================
 
         function(error) {
 
             console.error(
-                '================================'
+                "!!!!!!!!!!!!!!!!!!!!!!!!"
             );
 
             console.error(
-                'ct1.glb 読み込みエラー'
+                "ct1.glb 読み込み失敗"
             );
 
             console.error(
@@ -641,7 +386,7 @@
             );
 
             console.error(
-                '================================'
+                "!!!!!!!!!!!!!!!!!!!!!!!!"
             );
 
         }
@@ -650,298 +395,14 @@
 
 
     // ============================================================
-    // アニメーション切り替え
+    // Render
     // ============================================================
-
-    function setAction(name) {
-
-        if (
-            !mixer ||
-            !actions[name]
-        ) {
-
-            return;
-
-        }
-
-        const nextAction =
-            actions[name];
-
-        if (
-            currentAction !==
-            nextAction
-        ) {
-
-            if (currentAction) {
-
-                currentAction.fadeOut(
-                    0.2
-                );
-
-            }
-
-            nextAction
-                .reset()
-                .setLoop(
-                    THREE.LoopRepeat,
-                    Infinity
-                )
-                .fadeIn(0.2)
-                .play();
-
-            currentAction =
-                nextAction;
-
-        }
-
-    }
-
-
-    // ============================================================
-    // アナログスティック
-    // ============================================================
-
-    const joystickContainer =
-        document.getElementById(
-            'joystick-container'
-        );
-
-    const joystickStick =
-        document.getElementById(
-            'joystick-stick'
-        );
-
-    let joystickPointerId =
-        null;
-
-    let joystickX = 0;
-
-    let joystickY = 0;
-
-    const joystickRadius = 52;
-
-    const joystickDeadZone = 0.08;
-
-
-    function updateJoystick(
-        clientX,
-        clientY
-    ) {
-
-        const rect =
-            joystickContainer
-                .getBoundingClientRect();
-
-        const centerX =
-            rect.left +
-            rect.width / 2;
-
-        const centerY =
-            rect.top +
-            rect.height / 2;
-
-        let dx =
-            clientX -
-            centerX;
-
-        let dy =
-            clientY -
-            centerY;
-
-        const distance =
-            Math.hypot(
-                dx,
-                dy
-            );
-
-        if (
-            distance >
-            joystickRadius
-        ) {
-
-            dx =
-                dx / distance *
-                joystickRadius;
-
-            dy =
-                dy / distance *
-                joystickRadius;
-
-        }
-
-        joystickStick.style.transform =
-            `translate(${dx}px, ${dy}px)`;
-
-        joystickX =
-            dx /
-            joystickRadius;
-
-        joystickY =
-            dy /
-            joystickRadius;
-
-        if (
-            Math.hypot(
-                joystickX,
-                joystickY
-            ) <
-            joystickDeadZone
-        ) {
-
-            joystickX = 0;
-            joystickY = 0;
-
-        }
-
-    }
-
-
-    function resetJoystick() {
-
-        joystickPointerId =
-            null;
-
-        joystickX = 0;
-        joystickY = 0;
-
-        joystickStick.style.transform =
-            'translate(0px, 0px)';
-
-    }
-
-
-    function handleJoystickStart(e) {
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        if (
-            joystickPointerId !== null
-        ) {
-
-            return;
-
-        }
-
-        joystickPointerId =
-            e.pointerId;
-
-        try {
-
-            joystickContainer.setPointerCapture(
-                e.pointerId
-            );
-
-        } catch(err) {}
-
-        updateJoystick(
-            e.clientX,
-            e.clientY
-        );
-
-    }
-
-
-    function handleJoystickMove(e) {
-
-        if (
-            e.pointerId !==
-            joystickPointerId
-        ) {
-
-            return;
-
-        }
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        updateJoystick(
-            e.clientX,
-            e.clientY
-        );
-
-    }
-
-
-    function handleJoystickEnd(e) {
-
-        if (
-            e.pointerId !==
-            joystickPointerId
-        ) {
-
-            return;
-
-        }
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        resetJoystick();
-
-    }
-
-
-    joystickContainer.addEventListener(
-        'pointerdown',
-        handleJoystickStart,
-        {
-            passive: false
-        }
-    );
-
-    joystickContainer.addEventListener(
-        'pointermove',
-        handleJoystickMove,
-        {
-            passive: false
-        }
-    );
-
-    joystickContainer.addEventListener(
-        'pointerup',
-        handleJoystickEnd,
-        {
-            passive: false
-        }
-    );
-
-    joystickContainer.addEventListener(
-        'pointercancel',
-        handleJoystickEnd,
-        {
-            passive: false
-        }
-    );
-
-
-    // ============================================================
-    // メインループ
-    // ============================================================
-
-    const clock =
-        new THREE.Clock();
-
 
     function animate() {
 
         requestAnimationFrame(
             animate
         );
-
-        const delta =
-            clock.getDelta();
-
-
-        if (mixer) {
-
-            mixer.update(
-                delta
-            );
-
-        }
-
 
         renderer.render(
             scene,
@@ -950,16 +411,15 @@
 
     }
 
-
     animate();
 
 
     // ============================================================
-    // リサイズ
+    // Resize
     // ============================================================
 
     window.addEventListener(
-        'resize',
+        "resize",
         function() {
 
             camera.aspect =
