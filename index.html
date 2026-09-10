@@ -342,6 +342,15 @@
         // ジャンプ中かどうか
         let isJumping = false;
 
+        // jump開始からのフレーム数
+        let jumpFrameCount = 0;
+
+        // 30フレーム以降は移動アニメーションへ移行可能
+        const jumpTransitionFrame = 30;
+
+        // GLBのアニメーションFPS
+        const animationFPS = 30;
+
         const clock =
             new THREE.Clock();
 
@@ -673,7 +682,7 @@
                                 isJumping =
                                     false;
 
-                                // 現在の移動状態に戻す
+                                // jump終了後は通常状態へ
                                 updateMovementAnimation();
 
                             }
@@ -774,6 +783,9 @@
             }
 
             isJumping = true;
+
+            // ジャンプ開始時にフレーム数をリセット
+            jumpFrameCount = 0;
 
             const jumpAction =
                 actions.jump;
@@ -1460,11 +1472,17 @@
 
         function updateMovementAnimation() {
 
-            if (isJumping) {
+            // jump中で30フレーム未満なら何もしない
+            if (
+                isJumping &&
+                jumpFrameCount <
+                jumpTransitionFrame
+            ) {
 
                 return;
 
             }
+
 
             const isMoving =
                 (
@@ -1476,6 +1494,11 @@
                     keyState.right
                 );
 
+
+            // ========================================================
+            // 移動中ならdash
+            // ========================================================
+
             if (isMoving) {
 
                 if (actions.dash) {
@@ -1486,11 +1509,23 @@
 
             }
 
+
+            // ========================================================
+            // 移動していない場合
+            //
+            // jump中ならidleには切り替えない
+            // jump終了後のみidleへ切り替える
+            // ========================================================
+
             else {
 
-                if (actions.idle) {
+                if (!isJumping) {
 
-                    setAction('idle');
+                    if (actions.idle) {
+
+                        setAction('idle');
+
+                    }
 
                 }
 
@@ -1605,11 +1640,19 @@
 
             // ========================================================
             // 移動アニメーション
-            // ジャンプ中は変更しない
+            //
+            // jump開始から30フレーム未満
+            // → jumpを維持
+            //
+            // 30フレーム以降
+            // → 移動中ならdashへ変更
+            // → 停止中ならjumpを維持
             // ========================================================
 
             if (
-                !isJumping
+                !isJumping ||
+                jumpFrameCount >=
+                jumpTransitionFrame
             ) {
 
                 if (isMoving) {
@@ -1626,11 +1669,16 @@
 
                 else {
 
-                    if (
-                        actions.idle
-                    ) {
+                    // jump中ならidleへ変更しない
+                    if (!isJumping) {
 
-                        setAction('idle');
+                        if (
+                            actions.idle
+                        ) {
+
+                            setAction('idle');
+
+                        }
 
                     }
 
@@ -1756,6 +1804,57 @@
                 mixer.update(
                     delta
                 );
+
+
+                // ====================================================
+                // jumpのフレーム数を確認
+                // ====================================================
+
+                if (
+                    isJumping &&
+                    actions.jump
+                ) {
+
+                    jumpFrameCount =
+                        Math.floor(
+                            actions.jump.time *
+                            animationFPS
+                        );
+
+
+                    // --------------------------------------------
+                    // 30フレーム到達
+                    // --------------------------------------------
+
+                    if (
+                        jumpFrameCount >=
+                        jumpTransitionFrame
+                    ) {
+
+                        // 移動している場合のみ
+                        // dashへ切り替える
+                        const isMoving =
+                            (
+                                joystickX !== 0 ||
+                                joystickY !== 0 ||
+                                keyState.up ||
+                                keyState.down ||
+                                keyState.left ||
+                                keyState.right
+                            );
+
+                        if (isMoving) {
+
+                            isJumping =
+                                false;
+
+                            updateMovementAnimation();
+
+                        }
+
+                    }
+
+                }
 
             }
 
