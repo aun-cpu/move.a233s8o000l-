@@ -199,21 +199,16 @@
         let rootBone = null;
 
         // ------------------------------------------------------------
-        // 斬撃残像エフェクトの発生源となるノード
+        // 斬撃エフェクトの発生源となるノード（右手首ボーン）
         //
-        // 「鉄製武器」のような名前を持つメッシュ、または
-        // 「センター」系の名前を持つボーンを優先的に探し、
+        // GLB内の実際の命名が不明なため、右手首らしき名前のボーンを
+        // 複数のキーワードでゆるく一致検索するヒューリスティックな実装。
         // 見つからない場合は rootBone にフォールバックする。
-        // GLB内の実際の命名が不明なため、複数のキーワードで
-        // ゆるく一致検索するヒューリスティックな実装。
         // ------------------------------------------------------------
         let slashSourceNode = null;
 
-        const weaponMeshNamePattern =
-            /(weapon|buki|武器|sword|blade|katana|tekk|tekkin|iron|steel|鉄)/i;
-
-        const centerBoneNamePattern =
-            /(center|centre|senta|センター|試験|shiken)/i;
+        const rightWristBoneNamePattern =
+            /(right.*hand|right.*wrist|r[_\.]?hand\b|hand[_\.]?r\b|wrist.*r\b|r.*wrist|righthand|rightwrist|右手首|右手首関節|みぎてくび)/i;
 
         // rootBoneの立ち姿勢（基準）でのワールドY座標
         let rootBoneRestY = 0;
@@ -241,7 +236,7 @@
         // GLBのアニメーションFPS
         const animationFPS = 30;
 
-        // 衝撃波を発生させるフレーム
+        // 衝撃波（＋黒い爆発）を発生させるフレーム
         const shockwaveFrame = 22;
 
         // 今回のjumpで衝撃波を発生させ済みかどうか
@@ -403,16 +398,15 @@
 
                 // ====================================================
                 // ジャンプ追従用のルートボーン、および
-                // 斬撃残像の発生源ノードを特定する
+                // 斬撃エフェクトの発生源となる右手首ボーンを特定する
                 //
                 // ・ルートボーン : スケルトン中で最初に見つかったボーン
                 //   （＝一番上位の親ボーン）を、キャラクター全体の
                 //   上下動の代表値として使う
                 //
-                // ・斬撃残像の発生源 : 「鉄製武器」のような名前の
-                //   メッシュを最優先で探し、無ければ「センター」系の
-                //   名前のボーンを探す。どちらも見つからなければ
-                //   ルートボーンにフォールバックする
+                // ・斬撃エフェクトの発生源 : 「右手首」らしき名前の
+                //   ボーンを探す。見つからなければルートボーンに
+                //   フォールバックする
                 // ====================================================
                 targetModel.traverse((child) => {
 
@@ -420,21 +414,16 @@
                         rootBone = child;
                     }
 
-                    if (!slashSourceNode && child.isMesh && weaponMeshNamePattern.test(child.name)) {
+                    if (!slashSourceNode && child.isBone && rightWristBoneNamePattern.test(child.name)) {
                         slashSourceNode = child;
-                        console.info('[斬撃残像] 武器らしき名前のメッシュを検出:', child.name);
-                    }
-
-                    if (!slashSourceNode && child.isBone && centerBoneNamePattern.test(child.name)) {
-                        slashSourceNode = child;
-                        console.info('[斬撃残像] センターらしき名前のボーンを検出:', child.name);
+                        console.info('[斬撃エフェクト] 右手首らしき名前のボーンを検出:', child.name);
                     }
 
                 });
 
                 if (!slashSourceNode) {
                     slashSourceNode = rootBone;
-                    console.warn('[斬撃残像] 該当する名前のメッシュ/ボーンが見つからなかったため、rootBoneにフォールバックしました。');
+                    console.warn('[斬撃エフェクト] 右手首らしき名前のボーンが見つからなかったため、rootBoneにフォールバックしました。');
                 }
 
                 if (rootBone) {
@@ -472,52 +461,13 @@
 
 
         // ============================================================
-        // 衝撃波エフェクト（赤黒い細かい四角の破片が飛び散る）
+        // パーティクル共通処理
         //
-        // jumpの22フレーム目で1回だけ発生させる。
-        // 発生位置は ct1 の前方・地面付近。
-        // 発生後はjumpが中断されようが完走しようが関係なく、
-        // 各パーティクルが自身の経過時間・速度だけで
-        // 飛び散り～フェードアウトして消える
-        // （キャラクターのアニメーション状態には依存しない）
+        // 衝撃波の閃光/赤黒い破片、黒っぽい上方爆発、斬撃エフェクトなど、
+        // 見た目は違えど同じ物理（速度・重力・回転・フェード）で動く
+        // パーティクルをすべてこの配列でまとめて管理する。
         // ============================================================
-        const shockwaves = [];
-
-        // ------------------------------------
-        // 中心の閃光（発生の瞬間だけ強く光るコア）
-        // ------------------------------------
-        const shockwaveFlashDuration = 0.12;
-        const shockwaveFlashRadius = 0.5;
-        const shockwaveFlashMaxScale = 3.2;
-        const shockwaveFlashMaxOpacity = 1.0;
-        const shockwaveFlashColor = 0xffffff;
-
-        // ------------------------------------
-        // 不規則に飛び散る、赤黒い細かい四角の破片
-        // （規模・密度をより大きくしたバージョン）
-        // ------------------------------------
-        const shockwaveSparkCount = 55;
-
-        const shockwaveSparkMinSpeed = 2.0;
-        const shockwaveSparkMaxSpeed = 6.0;
-
-        const shockwaveSparkMinSize = 0.08;
-        const shockwaveSparkMaxSize = 0.24;
-
-        const shockwaveSparkMinDuration = 0.4;
-        const shockwaveSparkMaxDuration = 0.9;
-
-        const shockwaveSparkGravity = 3.5;
-
-        // 「赤黒い」表現のため、深い赤～ほぼ黒の間でランダムに混ぜる
-        const shockwaveSparkColorRed = new THREE.Color(0xff2200);
-        const shockwaveSparkColorBlack = new THREE.Color(0x120000);
-
-        // ------------------------------------
-        // 共通：発生位置（キャラクターの少し前方・地面付近）
-        // ------------------------------------
-        const shockwaveForwardOffset = 0.9;
-        const shockwaveGroundOffset = 0.05;
+        const particles = [];
 
 
         function randomRange(min, max) {
@@ -525,72 +475,62 @@
         }
 
 
-        function spawnShockwave() {
+        // ------------------------------------------------------------
+        // 白い閃光（衝撃波の発生瞬間だけ強く光るコア）
+        // ------------------------------------------------------------
+        function spawnFlashParticle(position, options) {
 
-            if (!targetModel) return;
+            const geometry = new THREE.SphereGeometry(options.radius, 12, 12);
 
-            // キャラクターの少し前方・地面付近を発生位置にする
-            const forward = new THREE.Vector3(0, 0, 1);
-            forward.applyQuaternion(targetModel.quaternion);
-            forward.y = 0;
-            forward.normalize();
-
-            const basePosition = targetModel.position.clone()
-                .addScaledVector(forward, shockwaveForwardOffset);
-
-            basePosition.y += shockwaveGroundOffset;
-
-
-            // ====================================================
-            // 中心の閃光
-            // ====================================================
-            const flashGeometry = new THREE.SphereGeometry(shockwaveFlashRadius, 12, 12);
-
-            const flashMaterial = new THREE.MeshBasicMaterial({
-                color: shockwaveFlashColor,
+            const material = new THREE.MeshBasicMaterial({
+                color: options.color,
                 transparent: true,
-                opacity: shockwaveFlashMaxOpacity,
+                opacity: options.startOpacity,
                 depthWrite: false,
                 blending: THREE.AdditiveBlending
             });
 
-            const flashMesh = new THREE.Mesh(flashGeometry, flashMaterial);
-            flashMesh.position.copy(basePosition);
-            scene.add(flashMesh);
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.copy(position);
+            scene.add(mesh);
 
-            shockwaves.push({
+            particles.push({
                 kind: 'flash',
-                mesh: flashMesh,
+                mesh: mesh,
                 elapsed: 0,
-                duration: shockwaveFlashDuration,
-                maxScale: shockwaveFlashMaxScale,
-                startOpacity: shockwaveFlashMaxOpacity
+                duration: options.duration,
+                maxScale: options.maxScale,
+                startOpacity: options.startOpacity
             });
 
+        }
 
-            // ====================================================
-            // 不規則に飛び散る、赤黒い細かい四角の破片
-            //
-            // それぞれ違う大きさ・色（赤～黒のランダム混合）・
-            // 初速・寿命を持たせ、重力で落ちながらフェードアウトする
-            // ====================================================
-            for (let i = 0; i < shockwaveSparkCount; i++) {
 
-                // 「細かい四角」を表現するため、薄い箱型ジオメトリを使用
-                const size = randomRange(shockwaveSparkMinSize, shockwaveSparkMaxSize);
+        // ------------------------------------------------------------
+        // 細かい四角（箱型）のパーティクルを一括生成する汎用関数
+        //
+        // 衝撃波の破片・黒い爆発・斬撃エフェクトはすべてこれを使う。
+        // 色や個数、速度、重力、範囲（spawnSpread）だけを変えることで
+        // 見た目の違うエフェクトを作り出す。
+        // ------------------------------------------------------------
+        function spawnCubeBurst(position, params) {
 
-                const sparkGeometry = new THREE.BoxGeometry(
+            const spawnSpread = params.spawnSpread || 0;
+
+            for (let i = 0; i < params.count; i++) {
+
+                const size = randomRange(params.minSize, params.maxSize);
+
+                const geometry = new THREE.BoxGeometry(
                     size,
                     size,
                     size * randomRange(0.15, 0.35)
                 );
 
-                // 赤と黒をランダムな比率で混ぜた色
-                const sparkColor = shockwaveSparkColorRed.clone()
-                    .lerp(shockwaveSparkColorBlack, Math.random());
+                const color = params.colorA.clone().lerp(params.colorB, Math.random());
 
-                const sparkMaterial = new THREE.MeshBasicMaterial({
-                    color: sparkColor,
+                const material = new THREE.MeshBasicMaterial({
+                    color: color,
                     transparent: true,
                     opacity: 1.0,
                     side: THREE.DoubleSide,
@@ -598,18 +538,26 @@
                     blending: THREE.AdditiveBlending
                 });
 
-                const sparkMesh = new THREE.Mesh(sparkGeometry, sparkMaterial);
-                sparkMesh.position.copy(basePosition);
+                const mesh = new THREE.Mesh(geometry, material);
 
-                sparkMesh.rotation.set(
+                const spawnPosition = position.clone();
+
+                if (spawnSpread > 0) {
+                    spawnPosition.x += randomRange(-spawnSpread, spawnSpread);
+                    spawnPosition.y += randomRange(-spawnSpread * 0.4, spawnSpread);
+                    spawnPosition.z += randomRange(-spawnSpread, spawnSpread);
+                }
+
+                mesh.position.copy(spawnPosition);
+
+                mesh.rotation.set(
                     Math.random() * Math.PI * 2,
                     Math.random() * Math.PI * 2,
                     Math.random() * Math.PI * 2
                 );
 
-                // 全方位（球面上のランダムな方向、やや上寄り）へ飛び散らせる
                 const azimuth = Math.random() * Math.PI * 2;
-                const elevation = randomRange(-0.1, 1.0);
+                const elevation = randomRange(params.elevationMin, params.elevationMax);
                 const horizontalRadius = Math.cos(elevation);
 
                 const direction = new THREE.Vector3(
@@ -618,7 +566,7 @@
                     Math.sin(azimuth) * horizontalRadius
                 );
 
-                const speed = randomRange(shockwaveSparkMinSpeed, shockwaveSparkMaxSpeed);
+                const speed = randomRange(params.minSpeed, params.maxSpeed);
                 const velocity = direction.multiplyScalar(speed);
 
                 const angularVelocity = new THREE.Vector3(
@@ -627,15 +575,16 @@
                     randomRange(-10, 10)
                 );
 
-                scene.add(sparkMesh);
+                scene.add(mesh);
 
-                shockwaves.push({
-                    kind: 'spark',
-                    mesh: sparkMesh,
+                particles.push({
+                    kind: 'cube',
+                    mesh: mesh,
                     elapsed: 0,
-                    duration: randomRange(shockwaveSparkMinDuration, shockwaveSparkMaxDuration),
+                    duration: randomRange(params.minDuration, params.maxDuration),
                     velocity: velocity,
                     angularVelocity: angularVelocity,
+                    gravity: params.gravity,
                     startOpacity: 1.0,
                     startScale: 1.0
                 });
@@ -645,11 +594,11 @@
         }
 
 
-        function updateShockwaves(delta) {
+        function updateParticles(delta) {
 
-            for (let i = shockwaves.length - 1; i >= 0; i--) {
+            for (let i = particles.length - 1; i >= 0; i--) {
 
-                const effect = shockwaves[i];
+                const effect = particles[i];
                 effect.elapsed += delta;
 
                 const t = Math.min(effect.elapsed / effect.duration, 1);
@@ -662,7 +611,7 @@
 
                 } else {
 
-                    effect.velocity.y -= shockwaveSparkGravity * delta;
+                    effect.velocity.y -= effect.gravity * delta;
                     effect.mesh.position.addScaledVector(effect.velocity, delta);
 
                     effect.mesh.rotation.x += effect.angularVelocity.x * delta;
@@ -679,7 +628,7 @@
                     scene.remove(effect.mesh);
                     effect.mesh.geometry.dispose();
                     effect.mesh.material.dispose();
-                    shockwaves.splice(i, 1);
+                    particles.splice(i, 1);
                 }
 
             }
@@ -688,143 +637,204 @@
 
 
         // ============================================================
-        // 斬撃残像エフェクト
+        // 衝撃波エフェクト（赤黒い細かい四角の破片が飛び散る）＋
+        // 黒っぽい四角の集合体が同じ地点から上方向へ爆発するエフェクト
         //
-        // 「鉄製武器」風の名前のメッシュ、または「センター」系の
-        // 名前のボーン（slashSourceNode）の軌跡を、赤黒いリボン状の
-        // メッシュとして描画する。jump中のみ新しい点を追加し、
-        // 追加した点は一定時間で自然にフェードアウトして消える。
+        // jumpの22フレーム目で1回だけ発生させる。
+        // 発生位置は ct1 の前方・地面付近。
+        // 発生後はjumpが中断されようが完走しようが関係なく、
+        // 各パーティクルが自身の経過時間・速度だけで
+        // 飛び散り～フェードアウトして消える
+        // （キャラクターのアニメーション状態には依存しない）
         // ============================================================
-        const slashTrailPoints = [];
-        const slashTrailMaxPoints = 40;
-        const slashTrailMaxLifetime = 0.4;
-        const slashTrailWidth = 0.18;
 
-        // 新しい点ほど赤く、古い点ほど黒に近づく
-        const slashTrailColorNew = new THREE.Color(0xff1a1a);
-        const slashTrailColorOld = new THREE.Color(0x120000);
+        // ------------------------------------
+        // 中心の閃光
+        // ------------------------------------
+        const shockwaveFlashDuration = 0.12;
+        const shockwaveFlashRadius = 0.5;
+        const shockwaveFlashMaxScale = 3.2;
+        const shockwaveFlashMaxOpacity = 1.0;
+        const shockwaveFlashColor = 0xffffff;
 
-        let slashTrailMesh = null;
+        // ------------------------------------
+        // 不規則に飛び散る、赤黒い細かい四角の破片
+        // ------------------------------------
+        const shockwaveSparkCount = 55;
 
-        const slashTrailMaterial = new THREE.MeshBasicMaterial({
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.9,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending
-        });
+        const shockwaveSparkMinSpeed = 2.0;
+        const shockwaveSparkMaxSpeed = 6.0;
 
-        const slashTrailWorldPosition = new THREE.Vector3();
+        const shockwaveSparkMinSize = 0.08;
+        const shockwaveSparkMaxSize = 0.24;
+
+        const shockwaveSparkMinDuration = 0.4;
+        const shockwaveSparkMaxDuration = 0.9;
+
+        const shockwaveSparkGravity = 3.5;
+
+        // 「赤黒い」表現のため、深い赤～ほぼ黒の間でランダムに混ぜる
+        // （斬撃エフェクトもこの配色を流用する）
+        const shockwaveSparkColorRed = new THREE.Color(0xff2200);
+        const shockwaveSparkColorBlack = new THREE.Color(0x120000);
+
+        // ------------------------------------
+        // 衝撃波とは別に、同じ地点から上方向へ爆発する
+        // 黒っぽい四角の集合体
+        // ------------------------------------
+        const blackBurstCount = 45;
+
+        const blackBurstMinSpeed = 3.0;
+        const blackBurstMaxSpeed = 7.0;
+
+        const blackBurstMinSize = 0.1;
+        const blackBurstMaxSize = 0.26;
+
+        const blackBurstMinDuration = 0.5;
+        const blackBurstMaxDuration = 1.0;
+
+        const blackBurstGravity = 2.5;
+
+        // ほぼ真上（elevationがπ/2に近いほど真上）に飛ばす
+        const blackBurstElevationMin = 0.9;
+        const blackBurstElevationMax = 1.4;
+
+        // 集合体らしく、発生位置に少しだけばらつきを持たせる
+        const blackBurstSpawnSpread = 0.2;
+
+        // 「黒っぽい」表現のため、ごく暗い赤黒～純粋な黒の間で混ぜる
+        const blackBurstColorDark = new THREE.Color(0x1a0000);
+        const blackBurstColorBlack = new THREE.Color(0x000000);
+
+        // ------------------------------------
+        // 共通：発生位置（キャラクターの少し前方・地面付近）
+        // ------------------------------------
+        const shockwaveForwardOffset = 0.9;
+        const shockwaveGroundOffset = 0.05;
 
 
-        function updateSlashTrailMesh() {
+        function getShockwaveOriginPosition() {
 
-            if (slashTrailPoints.length < 2) {
-                if (slashTrailMesh) slashTrailMesh.visible = false;
-                return;
-            }
+            const forward = new THREE.Vector3(0, 0, 1);
+            forward.applyQuaternion(targetModel.quaternion);
+            forward.y = 0;
+            forward.normalize();
 
-            const positions = [];
-            const colors = [];
-            const indices = [];
+            const basePosition = targetModel.position.clone()
+                .addScaledVector(forward, shockwaveForwardOffset);
 
-            for (let i = 0; i < slashTrailPoints.length; i++) {
+            basePosition.y += shockwaveGroundOffset;
 
-                const point = slashTrailPoints[i];
-
-                // タンジェント（進行方向）を計算
-                let tangent;
-
-                if (i === 0) {
-                    tangent = slashTrailPoints[i + 1].position.clone().sub(point.position);
-                } else if (i === slashTrailPoints.length - 1) {
-                    tangent = point.position.clone().sub(slashTrailPoints[i - 1].position);
-                } else {
-                    tangent = slashTrailPoints[i + 1].position.clone().sub(slashTrailPoints[i - 1].position);
-                }
-
-                if (tangent.lengthSq() < 0.0001) tangent.set(0, 0, 1);
-                tangent.normalize();
-
-                let side = new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0));
-                if (side.lengthSq() < 0.0001) side.set(1, 0, 0);
-                side.normalize();
-
-                const lifeRatio = 1 - Math.min(point.age / slashTrailMaxLifetime, 1);
-                const halfWidth = (slashTrailWidth * lifeRatio) / 2;
-
-                const left = point.position.clone().addScaledVector(side, halfWidth);
-                const right = point.position.clone().addScaledVector(side, -halfWidth);
-
-                positions.push(left.x, left.y, left.z);
-                positions.push(right.x, right.y, right.z);
-
-                const pointColor = slashTrailColorNew.clone().lerp(slashTrailColorOld, 1 - lifeRatio);
-
-                colors.push(pointColor.r, pointColor.g, pointColor.b);
-                colors.push(pointColor.r, pointColor.g, pointColor.b);
-
-            }
-
-            for (let i = 0; i < slashTrailPoints.length - 1; i++) {
-
-                const a = i * 2;
-                const b = i * 2 + 1;
-                const c = (i + 1) * 2;
-                const d = (i + 1) * 2 + 1;
-
-                indices.push(a, b, c);
-                indices.push(b, d, c);
-
-            }
-
-            if (!slashTrailMesh) {
-                slashTrailMesh = new THREE.Mesh(new THREE.BufferGeometry(), slashTrailMaterial);
-                scene.add(slashTrailMesh);
-            } else {
-                slashTrailMesh.geometry.dispose();
-            }
-
-            const geometry = new THREE.BufferGeometry();
-            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-            geometry.setIndex(indices);
-
-            slashTrailMesh.geometry = geometry;
-            slashTrailMesh.visible = true;
+            return basePosition;
 
         }
 
 
-        function updateSlashTrail(delta) {
+        function spawnJumpImpactEffects() {
 
-            for (let i = slashTrailPoints.length - 1; i >= 0; i--) {
+            if (!targetModel) return;
 
-                slashTrailPoints[i].age += delta;
+            const origin = getShockwaveOriginPosition();
 
-                if (slashTrailPoints[i].age > slashTrailMaxLifetime) {
-                    slashTrailPoints.splice(i, 1);
-                }
+            // 中心の閃光
+            spawnFlashParticle(origin, {
+                radius: shockwaveFlashRadius,
+                duration: shockwaveFlashDuration,
+                maxScale: shockwaveFlashMaxScale,
+                startOpacity: shockwaveFlashMaxOpacity,
+                color: shockwaveFlashColor
+            });
 
-            }
+            // 赤黒い破片（衝撃波本体）
+            spawnCubeBurst(origin, {
+                count: shockwaveSparkCount,
+                minSize: shockwaveSparkMinSize,
+                maxSize: shockwaveSparkMaxSize,
+                minSpeed: shockwaveSparkMinSpeed,
+                maxSpeed: shockwaveSparkMaxSpeed,
+                minDuration: shockwaveSparkMinDuration,
+                maxDuration: shockwaveSparkMaxDuration,
+                gravity: shockwaveSparkGravity,
+                colorA: shockwaveSparkColorRed,
+                colorB: shockwaveSparkColorBlack,
+                elevationMin: -0.1,
+                elevationMax: 1.0,
+                spawnSpread: 0
+            });
 
-            if (isJumping && slashSourceNode) {
+            // 黒っぽい四角の集合体（同じ地点から上方向へ爆発）
+            spawnCubeBurst(origin, {
+                count: blackBurstCount,
+                minSize: blackBurstMinSize,
+                maxSize: blackBurstMaxSize,
+                minSpeed: blackBurstMinSpeed,
+                maxSpeed: blackBurstMaxSpeed,
+                minDuration: blackBurstMinDuration,
+                maxDuration: blackBurstMaxDuration,
+                gravity: blackBurstGravity,
+                colorA: blackBurstColorDark,
+                colorB: blackBurstColorBlack,
+                elevationMin: blackBurstElevationMin,
+                elevationMax: blackBurstElevationMax,
+                spawnSpread: blackBurstSpawnSpread
+            });
 
-                slashSourceNode.getWorldPosition(slashTrailWorldPosition);
+        }
 
-                slashTrailPoints.push({
-                    position: slashTrailWorldPosition.clone(),
-                    age: 0
-                });
 
-                if (slashTrailPoints.length > slashTrailMaxPoints) {
-                    slashTrailPoints.shift();
-                }
+        // ============================================================
+        // 斬撃エフェクト
+        //
+        // 右手首ボーン（slashSourceNode）の位置から、衝撃波と同じ
+        // 赤黒い四角のパーティクルを毎フレーム発生させる。
+        // 「大袈裟」にするため、発生位置のばらつき・サイズ・範囲を
+        // 実際の腕の動きよりも大きめに設定している。
+        // jump中のみ発生し、各パーティクルは自身の寿命でフェードアウトする。
+        // ============================================================
+        const slashEffectSpawnCountPerFrame = 3;
 
-            }
+        // 発生位置のランダムなばらつき範囲（大袈裟にするため広め）
+        const slashEffectSpawnSpread = 0.55;
 
-            updateSlashTrailMesh();
+        const slashEffectMinSize = 0.14;
+        const slashEffectMaxSize = 0.38;
+
+        const slashEffectMinSpeed = 0.6;
+        const slashEffectMaxSpeed = 2.4;
+
+        const slashEffectMinDuration = 0.25;
+        const slashEffectMaxDuration = 0.55;
+
+        const slashEffectGravity = 1.0;
+
+        const slashEffectElevationMin = -0.3;
+        const slashEffectElevationMax = 0.9;
+
+        const slashSourceWorldPosition = new THREE.Vector3();
+
+
+        function updateSlashEffect(delta) {
+
+            if (!isJumping || !slashSourceNode) return;
+
+            slashSourceNode.getWorldPosition(slashSourceWorldPosition);
+
+            spawnCubeBurst(slashSourceWorldPosition, {
+                count: slashEffectSpawnCountPerFrame,
+                minSize: slashEffectMinSize,
+                maxSize: slashEffectMaxSize,
+                minSpeed: slashEffectMinSpeed,
+                maxSpeed: slashEffectMaxSpeed,
+                minDuration: slashEffectMinDuration,
+                maxDuration: slashEffectMaxDuration,
+                gravity: slashEffectGravity,
+                // 衝撃波と同じ「赤に黒を混ぜた」配色を流用
+                colorA: shockwaveSparkColorRed,
+                colorB: shockwaveSparkColorBlack,
+                elevationMin: slashEffectElevationMin,
+                elevationMax: slashEffectElevationMax,
+                spawnSpread: slashEffectSpawnSpread
+            });
 
         }
 
@@ -891,10 +901,6 @@
             isJumping = true;
             jumpFrameCount = 0;
             jumpShockwaveSpawned = false;
-
-            // 新しいジャンプの斬撃残像は、前回の残像と繋がらないよう
-            // ここで一旦リセットする
-            slashTrailPoints.length = 0;
 
             const jumpAction = actions.jump;
 
@@ -1274,13 +1280,12 @@
 
             updateModelMovement(delta);
 
-            // 衝撃波はjump/dash/idleどの状態にも関係なく
+            // 衝撃波・黒い爆発・斬撃エフェクトはどれも、
             // 常に自身の経過時間だけで更新する
-            updateShockwaves(delta);
+            updateParticles(delta);
 
-            // 斬撃残像も同様に、常に経過時間で更新する
-            // （新しい点の追加はisJumping中のみ）
-            updateSlashTrail(delta);
+            // 斬撃エフェクトの新規発生はisJumping中のみ
+            updateSlashEffect(delta);
 
             if (mixer) {
 
@@ -1296,10 +1301,10 @@
 
                     jumpFrameCount = Math.floor(actions.jump.time * animationFPS);
 
-                    // 22フレーム目で衝撃波とカメラシェイクを発生
+                    // 22フレーム目で衝撃波・黒い爆発・カメラシェイクを発生
                     // （1回のjumpにつき1回だけ）
                     if (!jumpShockwaveSpawned && jumpFrameCount >= shockwaveFrame) {
-                        spawnShockwave();
+                        spawnJumpImpactEffects();
                         triggerCameraShake();
                         jumpShockwaveSpawned = true;
                     }
