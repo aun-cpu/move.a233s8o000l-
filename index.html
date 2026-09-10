@@ -339,6 +339,20 @@
 
         let currentAction = null;
 
+        // ct1のスケルトン内で最も上位（＝全体の上下移動を代表する）のボーン
+        // jump中はここのワールドY座標を見て、カメラを上下に追従させる
+        let rootBone = null;
+
+        // rootBoneの立ち姿勢（基準）でのワールドY座標
+        let rootBoneRestY = 0;
+
+        // rootBoneの現在Y - 基準Y（＝ジャンプによる上下オフセット）
+        let jumpHeightOffset = 0;
+
+        // rootBoneのワールド座標取得用（毎フレーム使い回す）
+        const rootBoneWorldPosition =
+            new THREE.Vector3();
+
         // ジャンプ中かどうか
         // true の間（＝jump中断/完走のどちらかが確定するまで）は
         // 移動処理を一切行わない
@@ -716,6 +730,44 @@
 
                 }
 
+                // ====================================================
+                // ジャンプ追従用のルートボーンを特定
+                //
+                // スケルトン中で最初に見つかったボーン（＝一番上位の
+                // 親ボーン）を、キャラクター全体の上下動の代表値として使う
+                // ====================================================
+
+                targetModel.traverse(
+                    (child) => {
+
+                        if (
+                            child.isBone &&
+                            !rootBone
+                        ) {
+
+                            rootBone =
+                                child;
+
+                        }
+
+                    }
+                );
+
+                if (rootBone) {
+
+                    targetModel.updateMatrixWorld(
+                        true
+                    );
+
+                    rootBone.getWorldPosition(
+                        rootBoneWorldPosition
+                    );
+
+                    rootBoneRestY =
+                        rootBoneWorldPosition.y;
+
+                }
+
                 updateCameraPosition();
 
             },
@@ -788,17 +840,41 @@
 
         const shockwaves = [];
 
-        const shockwaveDuration = 0.5;
+        // ------------------------------------
+        // 拡散していくリング
+        // ------------------------------------
+
+        const shockwaveDuration = 0.6;
 
         const shockwaveStartRadius = 0.2;
 
-        const shockwaveRingThickness = 0.25;
+        const shockwaveRingThickness = 0.3;
 
-        const shockwaveMaxScale = 9;
+        const shockwaveMaxScale = 14;
+
+        const shockwaveMaxOpacity = 1.0;
+
+        const shockwaveColor = 0xfff0c2;
+
+        // ------------------------------------
+        // 発生の瞬間だけ強く光るフラッシュ
+        // ------------------------------------
+
+        const shockwaveFlashDuration = 0.15;
+
+        const shockwaveFlashRadius = 0.9;
+
+        const shockwaveFlashMaxScale = 3.2;
+
+        const shockwaveFlashMaxOpacity = 1.0;
+
+        const shockwaveFlashColor = 0xffffff;
+
+        // ------------------------------------
+        // 共通：発生位置（キャラクターの少し前方）
+        // ------------------------------------
 
         const shockwaveForwardOffset = 0.6;
-
-        const shockwaveMaxOpacity = 0.9;
 
 
         function spawnShockwave() {
@@ -809,41 +885,7 @@
 
             }
 
-            const geometry =
-                new THREE.RingGeometry(
-                    shockwaveStartRadius,
-                    shockwaveStartRadius +
-                        shockwaveRingThickness,
-                    48
-                );
-
-            const material =
-                new THREE.MeshBasicMaterial({
-
-                    color: 0xffffff,
-
-                    transparent: true,
-
-                    opacity:
-                        shockwaveMaxOpacity,
-
-                    side: THREE.DoubleSide,
-
-                    depthWrite: false
-
-                });
-
-            const mesh =
-                new THREE.Mesh(
-                    geometry,
-                    material
-                );
-
-            // 地面に水平なリングにする
-            mesh.rotation.x =
-                -Math.PI / 2;
-
-            // キャラクターの少し前方に配置
+            // キャラクターの少し前方・地面付近の発生位置を算出
             const forward =
                 new THREE.Vector3(
                     0,
@@ -859,25 +901,148 @@
 
             forward.normalize();
 
-            mesh.position.copy(
+            const basePosition =
                 targetModel.position
-            );
-
-            mesh.position.addScaledVector(
-                forward,
-                shockwaveForwardOffset
-            );
+                    .clone()
+                    .addScaledVector(
+                        forward,
+                        shockwaveForwardOffset
+                    );
 
             // 地面とのz-fightingを避けるため僅かに浮かせる
-            mesh.position.y += 0.05;
+            basePosition.y += 0.05;
 
-            scene.add(mesh);
+
+            // ====================================================
+            // 拡散していくリング
+            // ====================================================
+
+            const ringGeometry =
+                new THREE.RingGeometry(
+                    shockwaveStartRadius,
+                    shockwaveStartRadius +
+                        shockwaveRingThickness,
+                    48
+                );
+
+            const ringMaterial =
+                new THREE.MeshBasicMaterial({
+
+                    color:
+                        shockwaveColor,
+
+                    transparent: true,
+
+                    opacity:
+                        shockwaveMaxOpacity,
+
+                    side: THREE.DoubleSide,
+
+                    depthWrite: false,
+
+                    // 加算合成でエネルギー感のある光り方にする
+                    blending:
+                        THREE.AdditiveBlending
+
+                });
+
+            const ringMesh =
+                new THREE.Mesh(
+                    ringGeometry,
+                    ringMaterial
+                );
+
+            ringMesh.rotation.x =
+                -Math.PI / 2;
+
+            ringMesh.position.copy(
+                basePosition
+            );
+
+            scene.add(ringMesh);
 
             shockwaves.push({
 
-                mesh: mesh,
+                mesh: ringMesh,
 
-                elapsed: 0
+                elapsed: 0,
+
+                duration:
+                    shockwaveDuration,
+
+                maxScale:
+                    shockwaveMaxScale,
+
+                startOpacity:
+                    shockwaveMaxOpacity
+
+            });
+
+
+            // ====================================================
+            // 発生の瞬間だけ強く光るフラッシュ
+            // （インパクトの瞬間を強調する）
+            // ====================================================
+
+            const flashGeometry =
+                new THREE.CircleGeometry(
+                    shockwaveFlashRadius,
+                    32
+                );
+
+            const flashMaterial =
+                new THREE.MeshBasicMaterial({
+
+                    color:
+                        shockwaveFlashColor,
+
+                    transparent: true,
+
+                    opacity:
+                        shockwaveFlashMaxOpacity,
+
+                    side: THREE.DoubleSide,
+
+                    depthWrite: false,
+
+                    blending:
+                        THREE.AdditiveBlending
+
+                });
+
+            const flashMesh =
+                new THREE.Mesh(
+                    flashGeometry,
+                    flashMaterial
+                );
+
+            flashMesh.rotation.x =
+                -Math.PI / 2;
+
+            flashMesh.position.copy(
+                basePosition
+            );
+
+            // リングよりほんの少しだけ上にして重なりを綺麗に見せる
+            flashMesh.position.y +=
+                0.01;
+
+            scene.add(flashMesh);
+
+            shockwaves.push({
+
+                mesh: flashMesh,
+
+                elapsed: 0,
+
+                duration:
+                    shockwaveFlashDuration,
+
+                maxScale:
+                    shockwaveFlashMaxScale,
+
+                startOpacity:
+                    shockwaveFlashMaxOpacity
 
             });
 
@@ -893,16 +1058,16 @@
                 i--
             ) {
 
-                const shockwave =
+                const effect =
                     shockwaves[i];
 
-                shockwave.elapsed +=
+                effect.elapsed +=
                     delta;
 
                 const t =
                     Math.min(
-                        shockwave.elapsed /
-                            shockwaveDuration,
+                        effect.elapsed /
+                            effect.duration,
                         1
                     );
 
@@ -910,29 +1075,29 @@
                 const scale =
                     1 +
                     t *
-                        (shockwaveMaxScale -
+                        (effect.maxScale -
                             1);
 
-                shockwave.mesh.scale.set(
+                effect.mesh.scale.set(
                     scale,
                     scale,
                     scale
                 );
 
                 // フェードアウトしていく
-                shockwave.mesh.material.opacity =
-                    shockwaveMaxOpacity *
+                effect.mesh.material.opacity =
+                    effect.startOpacity *
                     (1 - t);
 
                 if (t >= 1) {
 
                     scene.remove(
-                        shockwave.mesh
+                        effect.mesh
                     );
 
-                    shockwave.mesh.geometry.dispose();
+                    effect.mesh.geometry.dispose();
 
-                    shockwave.mesh.material.dispose();
+                    effect.mesh.material.dispose();
 
                     shockwaves.splice(
                         i,
@@ -942,6 +1107,79 @@
                 }
 
             }
+
+        }
+
+
+        // ============================================================
+        // カメラシェイク
+        //
+        // jumpの22フレーム目（インパクトのピーク）に合わせて発生させ、
+        // 爽快感を出すために画面を短く揺らす
+        // ============================================================
+
+        let cameraShakeElapsed = null;
+
+        const cameraShakeDuration = 0.35;
+
+        const cameraShakeMagnitude = 0.12;
+
+
+        function triggerCameraShake() {
+
+            cameraShakeElapsed = 0;
+
+        }
+
+
+        function applyCameraShake(delta) {
+
+            if (
+                cameraShakeElapsed ===
+                null
+            ) {
+
+                return;
+
+            }
+
+            cameraShakeElapsed +=
+                delta;
+
+            const t =
+                cameraShakeElapsed /
+                cameraShakeDuration;
+
+            if (t >= 1) {
+
+                cameraShakeElapsed =
+                    null;
+
+                return;
+
+            }
+
+            // 減衰を強めにかけて、最初だけガツンと
+            // 揺れてすぐ収まるようにする
+            const decay =
+                1 - t;
+
+            const magnitude =
+                cameraShakeMagnitude *
+                decay *
+                decay;
+
+            camera.position.x +=
+                (Math.random() * 2 - 1) *
+                magnitude;
+
+            camera.position.y +=
+                (Math.random() * 2 - 1) *
+                magnitude;
+
+            camera.position.z +=
+                (Math.random() * 2 - 1) *
+                magnitude;
 
         }
 
@@ -1071,7 +1309,8 @@
                     .add(
                         new THREE.Vector3(
                             0,
-                            targetHeightOffset,
+                            targetHeightOffset +
+                                jumpHeightOffset,
                             0
                         )
                     );
@@ -1995,7 +2234,7 @@
                         );
 
                     // --------------------------------------------
-                    // 22フレーム目で衝撃波を発生
+                    // 22フレーム目で衝撃波とカメラシェイクを発生
                     // （1回のjumpにつき1回だけ）
                     // --------------------------------------------
 
@@ -2006,6 +2245,8 @@
                     ) {
 
                         spawnShockwave();
+
+                        triggerCameraShake();
 
                         jumpShockwaveSpawned =
                             true;
@@ -2033,7 +2274,33 @@
             }
 
 
+            // ====================================================
+            // ルートボーンの上下動をジャンプの高さオフセットとして
+            // 反映する（jump中にct1が飛び上がる分、カメラも追従する）
+            // ====================================================
+
+            if (rootBone) {
+
+                targetModel.updateMatrixWorld(
+                    true
+                );
+
+                rootBone.getWorldPosition(
+                    rootBoneWorldPosition
+                );
+
+                jumpHeightOffset =
+                    rootBoneWorldPosition.y -
+                    rootBoneRestY;
+
+            }
+
+
             updateCameraPosition();
+
+            applyCameraShake(
+                delta
+            );
 
 
             renderer.render(
