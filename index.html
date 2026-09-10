@@ -103,6 +103,53 @@
             transform: translate(0px, 0px);
         }
 
+        /* ============================================================
+           右下：ジャンプボタン
+        ============================================================ */
+
+        #jump-button {
+
+            position: absolute;
+
+            right: 35px;
+            bottom: 40px;
+
+            width: 90px;
+            height: 90px;
+
+            z-index: 20;
+
+            border-radius: 50%;
+
+            background: rgba(255, 255, 255, 0.18);
+
+            border: 2px solid rgba(255, 255, 255, 0.4);
+
+            color: rgba(255, 255, 255, 0.9);
+
+            font-size: 42px;
+            font-weight: bold;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            touch-action: none;
+
+            user-select: none;
+            -webkit-user-select: none;
+
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #jump-button:active {
+
+            background: rgba(255, 255, 255, 0.35);
+
+            transform: scale(0.94);
+
+        }
+
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -126,6 +173,13 @@
         <div id="joystick-stick"></div>
 
     </div>
+
+    <!-- ============================================================
+         ジャンプボタン
+    ============================================================ -->
+
+    <div id="jump-button">↑</div>
+
 
     <script>
 
@@ -171,6 +225,7 @@
             .getElementById('canvas-container')
             .appendChild(renderer.domElement);
 
+
         // ============================================================
         // ライト
         // ============================================================
@@ -210,6 +265,7 @@
 
         scene.add(fillLight);
 
+
         // ============================================================
         // 環境マップ
         // ============================================================
@@ -246,6 +302,7 @@
         scene.environment =
             environmentTarget.texture;
 
+
         // ============================================================
         // カメラ設定
         // ============================================================
@@ -266,6 +323,7 @@
         const maxPolarAngle =
             Math.PI / 2 - 0.05;
 
+
         // ============================================================
         // モデル・アニメーション
         // ============================================================
@@ -276,13 +334,17 @@
 
         let mixer = null;
 
-        // idle / dash を名前で保持
+        // idle / dash / jump
         let actions = {};
 
         let currentAction = null;
 
+        // ジャンプ中かどうか
+        let isJumping = false;
+
         const clock =
             new THREE.Clock();
+
 
         // ============================================================
         // 移動・カメラ設定
@@ -294,12 +356,14 @@
 
         const cameraTouchSensitivity = 0.005;
 
+
         // ============================================================
         // GLTF Loader
         // ============================================================
 
         const loader =
             new THREE.GLTFLoader();
+
 
         // ============================================================
         // 背景モデル
@@ -393,6 +457,7 @@
 
         );
 
+
         // ============================================================
         // ターゲットモデル
         // ============================================================
@@ -409,9 +474,10 @@
                 targetModel.rotation.y =
                     Math.PI;
 
+
                 // ====================================================
                 // ct1.glb
-                // 元の色を維持し、ごく僅かな光沢だけを追加
+                // 元の色を維持しつつ暗くする
                 // ====================================================
 
                 targetModel.traverse(
@@ -436,6 +502,20 @@
                                 }
 
                                 // ------------------------------------
+                                // 暗くする
+                                // ------------------------------------
+
+                                if (
+                                    material.color
+                                ) {
+
+                                    material.color.multiplyScalar(
+                                        0.55
+                                    );
+
+                                }
+
+                                // ------------------------------------
                                 // 金属感はほぼなくす
                                 // ------------------------------------
 
@@ -456,13 +536,6 @@
 
                                 material.envMapIntensity =
                                     0.15;
-
-                                // ------------------------------------
-                                // 元の色は変更しない
-                                // ------------------------------------
-
-                                // material.color.multiplyScalar()
-                                // は使用しない
 
                                 // ------------------------------------
                                 // テクスチャ
@@ -489,7 +562,9 @@
                     }
                 );
 
+
                 scene.add(targetModel);
+
 
                 // ====================================================
                 // アニメーション
@@ -513,50 +588,99 @@
                                     clip
                                 );
 
-                            // ------------------------------------
-                            // アニメーションを無限ループ
-                            // ------------------------------------
-
-                            action.setLoop(
-                                THREE.LoopRepeat,
-                                Infinity
-                            );
-
-                            action.clampWhenFinished =
-                                false;
-
-                            // ------------------------------------
-                            // 名前で idle / dash を取得
-                            // 大文字・小文字は区別しない
-                            // ------------------------------------
-
                             const animationName =
                                 clip.name
                                     .trim()
                                     .toLowerCase();
 
+
+                            // ------------------------------------
+                            // jump
+                            // ------------------------------------
+
                             if (
                                 animationName ===
-                                'idle'
+                                'jump'
                             ) {
 
-                                actions.idle =
+                                actions.jump =
                                     action;
+
+                                action.setLoop(
+                                    THREE.LoopOnce,
+                                    1
+                                );
+
+                                action.clampWhenFinished =
+                                    true;
 
                             }
 
-                            if (
-                                animationName ===
-                                'dash'
-                            ) {
 
-                                actions.dash =
-                                    action;
+                            // ------------------------------------
+                            // idle / dash
+                            // ------------------------------------
+
+                            else {
+
+                                action.setLoop(
+                                    THREE.LoopRepeat,
+                                    Infinity
+                                );
+
+                                action.clampWhenFinished =
+                                    false;
+
+                                if (
+                                    animationName ===
+                                    'idle'
+                                ) {
+
+                                    actions.idle =
+                                        action;
+
+                                }
+
+                                if (
+                                    animationName ===
+                                    'dash'
+                                ) {
+
+                                    actions.dash =
+                                        action;
+
+                                }
 
                             }
 
                         }
                     );
+
+
+                    // ------------------------------------
+                    // jump終了イベント
+                    // ------------------------------------
+
+                    mixer.addEventListener(
+                        'finished',
+                        function (event) {
+
+                            if (
+                                event.action ===
+                                actions.jump
+                            ) {
+
+                                isJumping =
+                                    false;
+
+                                // 現在の移動状態に戻す
+                                updateMovementAnimation();
+
+                            }
+
+                        }
+                    );
+
 
                     // ------------------------------------
                     // 初期状態は idle
@@ -582,6 +706,7 @@
             }
 
         );
+
 
         // ============================================================
         // アニメーション切り替え
@@ -616,11 +741,6 @@
 
                 nextAction
                     .reset()
-                    .setLoop(
-                        THREE.LoopRepeat,
-                        Infinity
-                    )
-                    .fadeIn(0.2)
                     .play();
 
                 currentAction =
@@ -629,6 +749,92 @@
             }
 
         }
+
+
+        // ============================================================
+        // ジャンプ
+        // ============================================================
+
+        function jump() {
+
+            if (
+                !mixer ||
+                !actions.jump
+            ) {
+
+                return;
+
+            }
+
+            // ジャンプ中は再度ジャンプしない
+            if (isJumping) {
+
+                return;
+
+            }
+
+            isJumping = true;
+
+            const jumpAction =
+                actions.jump;
+
+
+            // 現在のアニメーションを停止
+            if (currentAction) {
+
+                currentAction.fadeOut(
+                    0.1
+                );
+
+            }
+
+
+            // jumpを最初から再生
+            jumpAction
+                .reset()
+                .setLoop(
+                    THREE.LoopOnce,
+                    1
+                );
+
+            jumpAction.clampWhenFinished =
+                true;
+
+            jumpAction
+                .fadeIn(0.1)
+                .play();
+
+            currentAction =
+                jumpAction;
+
+        }
+
+
+        // ============================================================
+        // ジャンプボタン
+        // ============================================================
+
+        const jumpButton =
+            document.getElementById(
+                'jump-button'
+            );
+
+
+        jumpButton.addEventListener(
+            'pointerdown',
+            (e) => {
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                jump();
+
+            },
+            {
+                passive: false
+            }
+        );
+
 
         // ============================================================
         // カメラ位置更新
@@ -667,6 +873,7 @@
 
         }
 
+
         // ============================================================
         // アナログスティック
         // ============================================================
@@ -690,6 +897,7 @@
         const joystickRadius = 52;
 
         const joystickDeadZone = 0.08;
+
 
         // ------------------------------------------------------------
         // スティック位置更新
@@ -770,6 +978,7 @@
 
         }
 
+
         // ------------------------------------------------------------
         // スティックリセット
         // ------------------------------------------------------------
@@ -787,6 +996,7 @@
                 'translate(0px, 0px)';
 
         }
+
 
         // ------------------------------------------------------------
         // スティック開始
@@ -823,6 +1033,7 @@
 
         }
 
+
         // ------------------------------------------------------------
         // スティック移動
         // ------------------------------------------------------------
@@ -847,6 +1058,7 @@
             );
 
         }
+
 
         // ------------------------------------------------------------
         // スティック終了
@@ -888,6 +1100,7 @@
 
         }
 
+
         joystickContainer.addEventListener(
             'pointerdown',
             handleJoystickStart,
@@ -920,6 +1133,7 @@
             }
         );
 
+
         // ============================================================
         // キーボード操作
         // ============================================================
@@ -932,6 +1146,7 @@
             right: false
 
         };
+
 
         window.addEventListener(
             'keydown',
@@ -976,6 +1191,7 @@
             }
         );
 
+
         window.addEventListener(
             'keyup',
             (e) => {
@@ -1019,6 +1235,7 @@
             }
         );
 
+
         // ============================================================
         // カメラ操作
         // ============================================================
@@ -1031,6 +1248,7 @@
 
         let previousTouchY = 0;
 
+
         // ------------------------------------------------------------
         // カメラ開始
         // ------------------------------------------------------------
@@ -1040,6 +1258,16 @@
             if (
                 e.target.closest(
                     '#joystick-container'
+                )
+            ) {
+
+                return;
+
+            }
+
+            if (
+                e.target.closest(
+                    '#jump-button'
                 )
             ) {
 
@@ -1084,6 +1312,7 @@
             }
 
         }
+
 
         // ------------------------------------------------------------
         // カメラ移動
@@ -1141,6 +1370,7 @@
 
         }
 
+
         // ------------------------------------------------------------
         // カメラ終了
         // ------------------------------------------------------------
@@ -1190,6 +1420,7 @@
 
         }
 
+
         window.addEventListener(
             'pointerdown',
             handleRightScreenStart,
@@ -1222,6 +1453,52 @@
             }
         );
 
+
+        // ============================================================
+        // 移動アニメーション更新
+        // ============================================================
+
+        function updateMovementAnimation() {
+
+            if (isJumping) {
+
+                return;
+
+            }
+
+            const isMoving =
+                (
+                    joystickX !== 0 ||
+                    joystickY !== 0 ||
+                    keyState.up ||
+                    keyState.down ||
+                    keyState.left ||
+                    keyState.right
+                );
+
+            if (isMoving) {
+
+                if (actions.dash) {
+
+                    setAction('dash');
+
+                }
+
+            }
+
+            else {
+
+                if (actions.idle) {
+
+                    setAction('idle');
+
+                }
+
+            }
+
+        }
+
+
         // ============================================================
         // キャラクター移動
         // ============================================================
@@ -1246,6 +1523,7 @@
 
             let keyboardY = 0;
 
+
             if (keyState.right) {
 
                 keyboardX += 1;
@@ -1269,6 +1547,7 @@
                 keyboardY += 1;
 
             }
+
 
             if (
                 keyboardX !== 0 ||
@@ -1319,22 +1598,52 @@
 
             }
 
+
             const isMoving =
                 currentSpeed > 0;
 
-            if (isMoving) {
 
-                // ------------------------------------
-                // 移動中は dash
-                // ------------------------------------
+            // ========================================================
+            // 移動アニメーション
+            // ジャンプ中は変更しない
+            // ========================================================
 
-                if (
-                    actions.dash
-                ) {
+            if (
+                !isJumping
+            ) {
 
-                    setAction('dash');
+                if (isMoving) {
+
+                    if (
+                        actions.dash
+                    ) {
+
+                        setAction('dash');
+
+                    }
 
                 }
+
+                else {
+
+                    if (
+                        actions.idle
+                    ) {
+
+                        setAction('idle');
+
+                    }
+
+                }
+
+            }
+
+
+            // ========================================================
+            // 実際の移動
+            // ========================================================
+
+            if (isMoving) {
 
                 const cameraForward =
                     new THREE.Vector3();
@@ -1347,6 +1656,7 @@
 
                 cameraForward.normalize();
 
+
                 const cameraRight =
                     new THREE.Vector3();
 
@@ -1358,6 +1668,7 @@
                         0
                     )
                 ).normalize();
+
 
                 const moveDirection =
                     new THREE.Vector3();
@@ -1372,6 +1683,7 @@
                         -moveY
                     );
 
+
                 if (
                     moveDirection.lengthSq() > 0
                 ) {
@@ -1380,11 +1692,17 @@
 
                 }
 
+
                 targetModel.position
                     .addScaledVector(
                         moveDirection,
                         currentSpeed * delta
                     );
+
+
+                // ------------------------------------
+                // 移動方向へキャラクターを向ける
+                // ------------------------------------
 
                 const targetAngle =
                     Math.atan2(
@@ -1411,23 +1729,8 @@
 
             }
 
-            else {
-
-                // ------------------------------------
-                // 停止中は idle
-                // ------------------------------------
-
-                if (
-                    actions.idle
-                ) {
-
-                    setAction('idle');
-
-                }
-
-            }
-
         }
+
 
         // ============================================================
         // メインループ
@@ -1442,9 +1745,11 @@
             const delta =
                 clock.getDelta();
 
+
             updateModelMovement(
                 delta
             );
+
 
             if (mixer) {
 
@@ -1454,7 +1759,9 @@
 
             }
 
+
             updateCameraPosition();
+
 
             renderer.render(
                 scene,
@@ -1464,6 +1771,7 @@
         }
 
         animate();
+
 
         // ============================================================
         // リサイズ
