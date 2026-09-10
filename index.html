@@ -321,6 +321,25 @@
 
 
         // ------------------------------------------------------------
+        // ct1のジャンプ攻撃 → mgヒット時のワープ
+        //
+        // ct1のjumpアニメーション再生中、22フレーム目に到達した時点で、
+        // 斬撃エフェクトの発生源（右手首ボーン）とmgとの距離をチェックする。
+        // mgにはct1のおよそ2倍の身長を想定した縦方向の当たり判定を用意し、
+        // 水平距離・垂直距離の両方が範囲内であれば、そのジャンプにつき
+        // 1回だけmgをct1から少し離れた場所へワープさせる。
+        // ------------------------------------------------------------
+        const ct1ApproxHeight = 1.8;                 // ct1のおおよその身長（目安）
+        const mgHitboxHeight = ct1ApproxHeight * 2;  // mgの当たり判定の高さ（ct1のおよそ2倍）
+        const mgBodyRadius = 1.3;                    // mg本体の水平方向の当たり判定半径
+        const ct1AttackHitboxRadius = 1.0;           // ct1のジャンプ攻撃の当たり判定半径
+        const jumpAttackFrame = 22;                  // 攻撃判定を発生させるジャンプアニメのフレーム
+        const mgWarpDistance = 4.5;                  // ヒット時、mgをct1からどれだけ離れた位置へワープさせるか
+
+        let jumpAttackHitApplied = false;
+
+
+        // ------------------------------------------------------------
         // ノックバック発生時、当たり判定付近に一瞬出す黄色い光
         // ------------------------------------------------------------
         const knockbackFlashColor = 0xffe200;
@@ -335,6 +354,9 @@
         // ------------------------------------------------------------
         const mgCrescentFrame = 20; // このフレームに到達したら発生させる
         let mgCrescentSpawned = false;
+
+        const mgAttackShakeFrame = 25; // このフレームに到達したらカメラを揺らす
+        let mgAttackShakeSpawned = false;
 
         const mgCrescentArcSteps = 60;               // 三日月を構成するブロックの数 ※強化：数を増やす
         const mgCrescentArcAngleRange = Math.PI * 0.55; // 弧の全体角度（約99度）
@@ -697,6 +719,7 @@
             // 今回のattack1ではまだヒット処理・演出をしていない状態にリセット
             mgAttackHitApplied = false;
             mgCrescentSpawned = false;
+            mgAttackShakeSpawned = false;
             mgAttackFrameCount = 0;
 
             if (currentMgAction) {
@@ -928,6 +951,83 @@
                 isCt1Knockback = false;
                 ct1KnockbackVelocity.set(0, 0, 0);
             }
+
+        }
+
+
+        // ============================================================
+        // ct1のジャンプ攻撃 判定 → mgヒット時のワープ
+        // ============================================================
+        function updateCt1JumpAttackHit() {
+
+            if (!mgModel || !targetModel || !slashSourceNode) return;
+            if (!isJumping) return;
+            if (jumpAttackHitApplied) return;
+            if (jumpFrameCount < jumpAttackFrame) return;
+
+            slashSourceNode.getWorldPosition(slashSourceWorldPosition);
+
+            const dx = slashSourceWorldPosition.x - mgModel.position.x;
+            const dz = slashSourceWorldPosition.z - mgModel.position.z;
+            const horizontalDistance = Math.hypot(dx, dz);
+
+            if (horizontalDistance > ct1AttackHitboxRadius + mgBodyRadius) return;
+
+            // mgの足元からmgHitboxHeightの高さまでを当たり判定とする
+            const relativeHeight = slashSourceWorldPosition.y - mgModel.position.y;
+
+            if (relativeHeight < 0 || relativeHeight > mgHitboxHeight) return;
+
+            jumpAttackHitApplied = true;
+
+            warpMgAwayFromCt1();
+
+        }
+
+
+        function warpMgAwayFromCt1() {
+
+            if (!mgModel || !targetModel) return;
+
+            const dx = mgModel.position.x - targetModel.position.x;
+            const dz = mgModel.position.z - targetModel.position.z;
+
+            const warpDirection = new THREE.Vector3(dx, 0, dz);
+
+            if (warpDirection.lengthSq() < 0.0001) {
+
+                // ct1とmgがほぼ重なっている場合は、ct1の前方へ逃がす
+                warpDirection.set(0, 0, 1).applyQuaternion(targetModel.quaternion);
+                warpDirection.y = 0;
+
+            }
+
+            if (warpDirection.lengthSq() > 0) {
+                warpDirection.normalize();
+            }
+
+            mgModel.position.copy(targetModel.position).addScaledVector(warpDirection, mgWarpDistance);
+
+            const targetAngle = Math.atan2(-warpDirection.x, -warpDirection.z);
+
+            mgModel.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle);
+
+            // ワープ後は攻撃状態をリセットし、mgが再び近づいてこられるようにする
+            mgIsAttacking = false;
+            mgAttackTriggered = false;
+            stopMgAnimation();
+
+            // ワープの演出として、ワープ先に青白い光を一瞬出す
+            const flashPosition = mgModel.position.clone();
+            flashPosition.y += 1.2;
+
+            spawnFlashParticle(flashPosition, {
+                radius: knockbackFlashRadius,
+                duration: knockbackFlashDuration,
+                maxScale: knockbackFlashMaxScale * 1.3,
+                startOpacity: 1.0,
+                color: 0x66ccff
+            });
 
         }
 
@@ -1413,6 +1513,7 @@
 
             if (!targetModel) return;
             if (isDashing || isJumping) return;
+            if (isCt1Knockback) return; // ノックバック中はダッシュ不可
 
             const forward = new THREE.Vector3(0, 0, 1);
             forward.applyQuaternion(targetModel.quaternion);
@@ -1516,10 +1617,12 @@
             if (!mixer || !actions.jump) return;
             if (isJumping) return;
             if (isDashing) return;
+            if (isCt1Knockback) return; // ノックバック中はジャンプ不可
 
             isJumping = true;
             jumpFrameCount = 0;
             jumpShockwaveSpawned = false;
+            jumpAttackHitApplied = false;
 
             const jumpAction = actions.jump;
 
@@ -1809,6 +1912,7 @@
 
             if (!targetModel) return;
             if (isDashing) return;
+            if (isCt1Knockback) return; // ノックバック中は移動操作を無効化
 
             let moveX = joystickX;
             let moveY = joystickY;
@@ -1934,6 +2038,9 @@
                         jumpShockwaveSpawned = true;
                     }
 
+                    // 22フレーム目以降、mgへの攻撃判定をチェック
+                    updateCt1JumpAttackHit();
+
                     if (jumpFrameCount >= jumpTransitionFrame && hasMoveInput()) {
                         isJumping = false;
                         updateMovementAnimation();
@@ -1956,6 +2063,12 @@
                     if (!mgCrescentSpawned && mgAttackFrameCount >= mgCrescentFrame) {
                         spawnMgCrescentEffect();
                         mgCrescentSpawned = true;
+                    }
+
+                    // 25フレーム目に達したらカメラを1回だけ揺らす
+                    if (!mgAttackShakeSpawned && mgAttackFrameCount >= mgAttackShakeFrame) {
+                        triggerCameraShake();
+                        mgAttackShakeSpawned = true;
                     }
 
                 }
