@@ -2,14 +2,10 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0, user-scalable=no">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>3D GLB Viewer - Analog Stick & Camera Control</title>
 
     <style>
-
         * {
             margin: 0;
             padding: 0;
@@ -36,312 +32,188 @@
         /* ============================================================
            左下：アナログスティック
         ============================================================ */
-
         #joystick-container {
-
             position: absolute;
-
             left: 30px;
             bottom: 30px;
-
             width: 150px;
             height: 150px;
-
             z-index: 20;
-
             touch-action: none;
-
             user-select: none;
             -webkit-user-select: none;
         }
 
         #joystick-base {
-
             position: absolute;
-
             left: 0;
             top: 0;
-
             width: 150px;
             height: 150px;
-
             border-radius: 50%;
-
             background: rgba(255, 255, 255, 0.15);
-
             border: 2px solid rgba(255, 255, 255, 0.35);
-
             touch-action: none;
-
             user-select: none;
             -webkit-user-select: none;
         }
 
         #joystick-stick {
-
             position: absolute;
-
             left: 52px;
             top: 52px;
-
             width: 46px;
             height: 46px;
-
             border-radius: 50%;
-
             background: rgba(255, 255, 255, 0.45);
-
             border: 2px solid rgba(255, 255, 255, 0.65);
-
             touch-action: none;
-
             user-select: none;
             -webkit-user-select: none;
-
             pointer-events: none;
-
             transform: translate(0px, 0px);
         }
 
         /* ============================================================
            右下：ジャンプボタン
         ============================================================ */
-
         #jump-button {
-
             position: absolute;
-
             right: 35px;
             bottom: 40px;
-
             width: 90px;
             height: 90px;
-
             z-index: 20;
-
             border-radius: 50%;
-
             background: rgba(255, 255, 255, 0.18);
-
             border: 2px solid rgba(255, 255, 255, 0.4);
-
             color: rgba(255, 255, 255, 0.9);
-
             font-size: 42px;
             font-weight: bold;
-
             display: flex;
             align-items: center;
             justify-content: center;
-
             touch-action: none;
-
             user-select: none;
             -webkit-user-select: none;
-
             -webkit-tap-highlight-color: transparent;
         }
 
         #jump-button:active {
-
             background: rgba(255, 255, 255, 0.35);
-
             transform: scale(0.94);
-
         }
-
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-
 </head>
 
 <body>
-
     <div id="canvas-container"></div>
 
-    <!-- ============================================================
-         アナログスティック
-    ============================================================ -->
-
+    <!-- アナログスティック -->
     <div id="joystick-container">
-
         <div id="joystick-base"></div>
-
         <div id="joystick-stick"></div>
-
     </div>
 
-    <!-- ============================================================
-         ジャンプボタン
-    ============================================================ -->
-
+    <!-- ジャンプボタン -->
     <div id="jump-button">↑</div>
-
 
     <script>
 
         // ============================================================
         // Three.js 基本設定
         // ============================================================
-
         const scene = new THREE.Scene();
 
         const camera = new THREE.PerspectiveCamera(
-            75,
-            window.innerWidth / window.innerHeight,
-            0.1,
-            1000
+            75, window.innerWidth / window.innerHeight, 0.1, 1000
         );
 
-        const renderer = new THREE.WebGLRenderer({
-            antialias: true
-        });
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.15;
 
-        renderer.setSize(
-            window.innerWidth,
-            window.innerHeight
-        );
-
-        renderer.setPixelRatio(
-            Math.min(
-                window.devicePixelRatio,
-                2
-            )
-        );
-
-        renderer.outputEncoding =
-            THREE.sRGBEncoding;
-
-        renderer.toneMapping =
-            THREE.ACESFilmicToneMapping;
-
-        renderer.toneMappingExposure =
-            1.15;
-
-        document
-            .getElementById('canvas-container')
-            .appendChild(renderer.domElement);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
 
 
         // ============================================================
         // ライト
         // ============================================================
+        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
 
-        scene.add(
-            new THREE.AmbientLight(
-                0xffffff,
-                1.2
-            )
-        );
-
-        const dirLight =
-            new THREE.DirectionalLight(
-                0xffffff,
-                3
-            );
-
-        dirLight.position.set(
-            5,
-            10,
-            7.5
-        );
-
+        const dirLight = new THREE.DirectionalLight(0xffffff, 3);
+        dirLight.position.set(5, 10, 7.5);
         scene.add(dirLight);
 
-        const fillLight =
-            new THREE.DirectionalLight(
-                0xffffff,
-                1.5
-            );
-
-        fillLight.position.set(
-            -5,
-            5,
-            -7
-        );
-
+        const fillLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        fillLight.position.set(-5, 5, -7);
         scene.add(fillLight);
 
 
         // ============================================================
         // 環境マップ
         // ============================================================
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
 
-        const pmremGenerator =
-            new THREE.PMREMGenerator(
-                renderer
-            );
+        const environmentScene = new THREE.Scene();
+        environmentScene.background = new THREE.Color(0x202020);
 
-        const environmentScene =
-            new THREE.Scene();
+        const environmentLight = new THREE.HemisphereLight(0xffffff, 0x222222, 2);
+        environmentScene.add(environmentLight);
 
-        environmentScene.background =
-            new THREE.Color(
-                0x202020
-            );
-
-        const environmentLight =
-            new THREE.HemisphereLight(
-                0xffffff,
-                0x222222,
-                2
-            );
-
-        environmentScene.add(
-            environmentLight
-        );
-
-        const environmentTarget =
-            pmremGenerator.fromScene(
-                environmentScene
-            );
-
-        scene.environment =
-            environmentTarget.texture;
+        const environmentTarget = pmremGenerator.fromScene(environmentScene);
+        scene.environment = environmentTarget.texture;
 
 
         // ============================================================
         // カメラ設定
         // ============================================================
-
         const targetHeightOffset = 1.5;
-
         const cameraDistance = 1.6;
 
-        let cameraSpherical =
-            new THREE.Spherical(
-                cameraDistance,
-                Math.PI / 2.2,
-                0
-            );
+        let cameraSpherical = new THREE.Spherical(cameraDistance, Math.PI / 2.2, 0);
 
         const minPolarAngle = 0.1;
-
-        const maxPolarAngle =
-            Math.PI / 2 - 0.05;
+        const maxPolarAngle = Math.PI / 2 - 0.05;
 
 
         // ============================================================
         // モデル・アニメーション
         // ============================================================
-
         let targetModel = null;
-
         let bgModel = null;
-
         let mixer = null;
 
         // idle / dash / jump
         let actions = {};
-
         let currentAction = null;
 
         // ct1のスケルトン内で最も上位（＝全体の上下移動を代表する）のボーン
         // jump中はここのワールドY座標を見て、カメラを上下に追従させる
         let rootBone = null;
+
+        // ------------------------------------------------------------
+        // 斬撃残像エフェクトの発生源となるノード
+        //
+        // 「鉄製武器」のような名前を持つメッシュ、または
+        // 「センター」系の名前を持つボーンを優先的に探し、
+        // 見つからない場合は rootBone にフォールバックする。
+        // GLB内の実際の命名が不明なため、複数のキーワードで
+        // ゆるく一致検索するヒューリスティックな実装。
+        // ------------------------------------------------------------
+        let slashSourceNode = null;
+
+        const weaponMeshNamePattern =
+            /(weapon|buki|武器|sword|blade|katana|tekk|tekkin|iron|steel|鉄)/i;
+
+        const centerBoneNamePattern =
+            /(center|centre|senta|センター|試験|shiken)/i;
 
         // rootBoneの立ち姿勢（基準）でのワールドY座標
         let rootBoneRestY = 0;
@@ -350,8 +222,7 @@
         let jumpHeightOffset = 0;
 
         // rootBoneのワールド座標取得用（毎フレーム使い回す）
-        const rootBoneWorldPosition =
-            new THREE.Vector3();
+        const rootBoneWorldPosition = new THREE.Vector3();
 
         // ジャンプ中かどうか
         // true の間（＝jump中断/完走のどちらかが確定するまで）は
@@ -376,14 +247,12 @@
         // 今回のjumpで衝撃波を発生させ済みかどうか
         let jumpShockwaveSpawned = false;
 
-        const clock =
-            new THREE.Clock();
+        const clock = new THREE.Clock();
 
 
         // ============================================================
         // 移動・カメラ設定
         // ============================================================
-
         const maxMoveSpeed = 4.0;
 
         // jump中は移動を完全に禁止せず、この倍率をかけた
@@ -391,768 +260,384 @@
         const jumpMoveSpeedFactor = 0.3;
 
         const rotationSpeed = 10.0;
-
         const cameraTouchSensitivity = 0.005;
 
 
         // ============================================================
         // GLTF Loader
         // ============================================================
-
-        const loader =
-            new THREE.GLTFLoader();
+        const loader = new THREE.GLTFLoader();
 
 
         // ============================================================
         // 背景モデル
         // ============================================================
-
         loader.load(
-
             './bg.glb',
-
             function (gltf) {
 
-                bgModel =
-                    gltf.scene;
+                bgModel = gltf.scene;
+                bgModel.scale.set(2, 2, 2);
 
-                bgModel.scale.set(
-                    2,
-                    2,
-                    2
-                );
-
-                // ====================================================
                 // 元のマテリアルの色を使用したワイヤーフレーム
-                // ====================================================
+                bgModel.traverse((child) => {
 
-                bgModel.traverse(
-                    (child) => {
+                    if (!child.isMesh) return;
 
-                        if (!child.isMesh) {
-                            return;
-                        }
+                    const oldMaterial = child.material;
+                    const materials = Array.isArray(oldMaterial) ? oldMaterial : [oldMaterial];
 
-                        const oldMaterial =
-                            child.material;
+                    const newMaterials = materials.map((material) => {
+                        return new THREE.MeshBasicMaterial({
+                            wireframe: true,
+                            transparent: material.transparent,
+                            opacity: material.opacity,
+                            map: material.map || null,
+                            vertexColors: material.vertexColors
+                        });
+                    });
 
-                        const materials =
-                            Array.isArray(
-                                oldMaterial
-                            )
-                                ? oldMaterial
-                                : [oldMaterial];
+                    child.material = Array.isArray(oldMaterial) ? newMaterials : newMaterials[0];
 
-                        const newMaterials =
-                            materials.map(
-                                (material) => {
-
-                                    return new THREE.MeshBasicMaterial({
-
-                                        wireframe: true,
-
-                                        transparent:
-                                            material.transparent,
-
-                                        opacity:
-                                            material.opacity,
-
-                                        map:
-                                            material.map || null,
-
-                                        vertexColors:
-                                            material.vertexColors
-
-                                    });
-
-                                }
-                            );
-
-                        child.material =
-                            Array.isArray(
-                                oldMaterial
-                            )
-                                ? newMaterials
-                                : newMaterials[0];
-
-                    }
-                );
+                });
 
                 scene.add(bgModel);
 
             },
-
             undefined,
-
             function (error) {
-
-                console.error(
-                    'bg.glb の読み込みエラー:',
-                    error
-                );
-
+                console.error('bg.glb の読み込みエラー:', error);
             }
-
         );
 
 
         // ============================================================
         // ターゲットモデル
         // ============================================================
-
         loader.load(
-
             './ct1.glb',
-
             function (gltf) {
 
-                targetModel =
-                    gltf.scene;
+                targetModel = gltf.scene;
+                targetModel.rotation.y = Math.PI;
 
-                targetModel.rotation.y =
-                    Math.PI;
+                // ct1.glb: 元の色を維持しつつ暗くする
+                targetModel.traverse((child) => {
 
+                    if (!child.isMesh) return;
 
-                // ====================================================
-                // ct1.glb
-                // 元の色を維持しつつ暗くする
-                // ====================================================
+                    const materials = Array.isArray(child.material) ? child.material : [child.material];
 
-                targetModel.traverse(
-                    (child) => {
+                    materials.forEach((material) => {
 
-                        if (!child.isMesh) {
-                            return;
+                        if (!material) return;
+
+                        if (material.color) {
+                            material.color.multiplyScalar(0.55);
                         }
 
-                        const materials =
-                            Array.isArray(
-                                child.material
-                            )
-                                ? child.material
-                                : [child.material];
+                        material.metalness = 0.05;
+                        material.roughness = 0.85;
+                        material.envMapIntensity = 0.15;
 
-                        materials.forEach(
-                            (material) => {
+                        if (material.map) {
+                            material.map.encoding = THREE.sRGBEncoding;
+                            material.map.needsUpdate = true;
+                        }
 
-                                if (!material) {
-                                    return;
-                                }
+                        material.needsUpdate = true;
 
-                                // ------------------------------------
-                                // 暗くする
-                                // ------------------------------------
+                    });
 
-                                if (
-                                    material.color
-                                ) {
-
-                                    material.color.multiplyScalar(
-                                        0.55
-                                    );
-
-                                }
-
-                                // ------------------------------------
-                                // 金属感はほぼなくす
-                                // ------------------------------------
-
-                                material.metalness =
-                                    0.05;
-
-                                // ------------------------------------
-                                // 元の質感を維持しつつ
-                                // ごく僅かな光沢を残す
-                                // ------------------------------------
-
-                                material.roughness =
-                                    0.85;
-
-                                // ------------------------------------
-                                // 環境反射を弱くする
-                                // ------------------------------------
-
-                                material.envMapIntensity =
-                                    0.15;
-
-                                // ------------------------------------
-                                // テクスチャ
-                                // ------------------------------------
-
-                                if (
-                                    material.map
-                                ) {
-
-                                    material.map.encoding =
-                                        THREE.sRGBEncoding;
-
-                                    material.map.needsUpdate =
-                                        true;
-
-                                }
-
-                                material.needsUpdate =
-                                    true;
-
-                            }
-                        );
-
-                    }
-                );
-
+                });
 
                 scene.add(targetModel);
-
 
                 // ====================================================
                 // アニメーション
                 // ====================================================
+                if (gltf.animations && gltf.animations.length > 0) {
 
-                if (
-                    gltf.animations &&
-                    gltf.animations.length > 0
-                ) {
+                    mixer = new THREE.AnimationMixer(targetModel);
 
-                    mixer =
-                        new THREE.AnimationMixer(
-                            targetModel
-                        );
+                    gltf.animations.forEach((clip) => {
 
-                    gltf.animations.forEach(
-                        (clip) => {
+                        const action = mixer.clipAction(clip);
+                        const animationName = clip.name.trim().toLowerCase();
 
-                            const action =
-                                mixer.clipAction(
-                                    clip
-                                );
+                        if (animationName === 'jump') {
 
-                            const animationName =
-                                clip.name
-                                    .trim()
-                                    .toLowerCase();
+                            actions.jump = action;
+                            action.setLoop(THREE.LoopOnce, 1);
+                            action.clampWhenFinished = true;
 
+                        } else {
 
-                            // ------------------------------------
-                            // jump
-                            // ------------------------------------
+                            action.setLoop(THREE.LoopRepeat, Infinity);
+                            action.clampWhenFinished = false;
 
-                            if (
-                                animationName ===
-                                'jump'
-                            ) {
-
-                                actions.jump =
-                                    action;
-
-                                action.setLoop(
-                                    THREE.LoopOnce,
-                                    1
-                                );
-
-                                action.clampWhenFinished =
-                                    true;
-
-                            }
-
-
-                            // ------------------------------------
-                            // idle / dash
-                            // ------------------------------------
-
-                            else {
-
-                                action.setLoop(
-                                    THREE.LoopRepeat,
-                                    Infinity
-                                );
-
-                                action.clampWhenFinished =
-                                    false;
-
-                                if (
-                                    animationName ===
-                                    'idle'
-                                ) {
-
-                                    actions.idle =
-                                        action;
-
-                                }
-
-                                if (
-                                    animationName ===
-                                    'dash'
-                                ) {
-
-                                    actions.dash =
-                                        action;
-
-                                }
-
-                            }
+                            if (animationName === 'idle') actions.idle = action;
+                            if (animationName === 'dash') actions.dash = action;
 
                         }
-                    );
 
+                    });
 
-                    // ------------------------------------
                     // jump終了イベント
-                    //
-                    // 25フレーム到達前に完走した場合や、
-                    // 入力が無いままjumpを最後まで再生し終えた
-                    // 場合にここへ来る（中断済みならisJumpingは
-                    // 既にfalseなので何もしない）
-                    // ------------------------------------
+                    // 25フレーム到達前に完走した場合や、入力が無いまま
+                    // jumpを最後まで再生し終えた場合にここへ来る
+                    // （中断済みならisJumpingは既にfalseなので何もしない）
+                    mixer.addEventListener('finished', function (event) {
 
-                    mixer.addEventListener(
-                        'finished',
-                        function (event) {
-
-                            if (
-                                event.action ===
-                                actions.jump &&
-                                isJumping
-                            ) {
-
-                                isJumping =
-                                    false;
-
-                                // jump終了後は現在の入力状態に応じて
-                                // dash / idle へ切り替える
-                                updateMovementAnimation();
-
-                            }
-
+                        if (event.action === actions.jump && isJumping) {
+                            isJumping = false;
+                            updateMovementAnimation();
                         }
-                    );
 
+                    });
 
-                    // ------------------------------------
                     // 初期状態は idle
-                    // ------------------------------------
-
                     setAction('idle');
 
                 }
 
                 // ====================================================
-                // ジャンプ追従用のルートボーンを特定
+                // ジャンプ追従用のルートボーン、および
+                // 斬撃残像の発生源ノードを特定する
                 //
-                // スケルトン中で最初に見つかったボーン（＝一番上位の
-                // 親ボーン）を、キャラクター全体の上下動の代表値として使う
+                // ・ルートボーン : スケルトン中で最初に見つかったボーン
+                //   （＝一番上位の親ボーン）を、キャラクター全体の
+                //   上下動の代表値として使う
+                //
+                // ・斬撃残像の発生源 : 「鉄製武器」のような名前の
+                //   メッシュを最優先で探し、無ければ「センター」系の
+                //   名前のボーンを探す。どちらも見つからなければ
+                //   ルートボーンにフォールバックする
                 // ====================================================
+                targetModel.traverse((child) => {
 
-                targetModel.traverse(
-                    (child) => {
-
-                        if (
-                            child.isBone &&
-                            !rootBone
-                        ) {
-
-                            rootBone =
-                                child;
-
-                        }
-
+                    if (child.isBone && !rootBone) {
+                        rootBone = child;
                     }
-                );
+
+                    if (!slashSourceNode && child.isMesh && weaponMeshNamePattern.test(child.name)) {
+                        slashSourceNode = child;
+                        console.info('[斬撃残像] 武器らしき名前のメッシュを検出:', child.name);
+                    }
+
+                    if (!slashSourceNode && child.isBone && centerBoneNamePattern.test(child.name)) {
+                        slashSourceNode = child;
+                        console.info('[斬撃残像] センターらしき名前のボーンを検出:', child.name);
+                    }
+
+                });
+
+                if (!slashSourceNode) {
+                    slashSourceNode = rootBone;
+                    console.warn('[斬撃残像] 該当する名前のメッシュ/ボーンが見つからなかったため、rootBoneにフォールバックしました。');
+                }
 
                 if (rootBone) {
-
-                    targetModel.updateMatrixWorld(
-                        true
-                    );
-
-                    rootBone.getWorldPosition(
-                        rootBoneWorldPosition
-                    );
-
-                    rootBoneRestY =
-                        rootBoneWorldPosition.y;
-
+                    targetModel.updateMatrixWorld(true);
+                    rootBone.getWorldPosition(rootBoneWorldPosition);
+                    rootBoneRestY = rootBoneWorldPosition.y;
                 }
 
                 updateCameraPosition();
 
             },
-
             undefined,
-
             function (error) {
-
-                console.error(
-                    'ct1.glb の読み込みエラー:',
-                    error
-                );
-
+                console.error('ct1.glb の読み込みエラー:', error);
             }
-
         );
 
 
         // ============================================================
         // アニメーション切り替え
         // ============================================================
-
         function setAction(name) {
 
-            if (
-                !mixer ||
-                !actions[name]
-            ) {
+            if (!mixer || !actions[name]) return;
 
-                return;
+            const nextAction = actions[name];
 
-            }
-
-            const nextAction =
-                actions[name];
-
-            if (
-                currentAction !==
-                nextAction
-            ) {
-
-                if (currentAction) {
-
-                    currentAction.fadeOut(
-                        0.2
-                    );
-
-                }
-
-                nextAction
-                    .reset()
-                    .play();
-
-                currentAction =
-                    nextAction;
-
+            if (currentAction !== nextAction) {
+                if (currentAction) currentAction.fadeOut(0.2);
+                nextAction.reset().play();
+                currentAction = nextAction;
             }
 
         }
 
 
         // ============================================================
-        // 衝撃波エフェクト（不規則な火花の3D的な飛び散り）
+        // 衝撃波エフェクト（赤黒い細かい四角の破片が飛び散る）
         //
         // jumpの22フレーム目で1回だけ発生させる。
+        // 発生位置は ct1 の前方・地面付近。
         // 発生後はjumpが中断されようが完走しようが関係なく、
         // 各パーティクルが自身の経過時間・速度だけで
         // 飛び散り～フェードアウトして消える
         // （キャラクターのアニメーション状態には依存しない）
         // ============================================================
-
         const shockwaves = [];
 
         // ------------------------------------
         // 中心の閃光（発生の瞬間だけ強く光るコア）
         // ------------------------------------
-
         const shockwaveFlashDuration = 0.12;
-
-        const shockwaveFlashRadius = 0.35;
-
-        const shockwaveFlashMaxScale = 2.4;
-
+        const shockwaveFlashRadius = 0.5;
+        const shockwaveFlashMaxScale = 3.2;
         const shockwaveFlashMaxOpacity = 1.0;
-
         const shockwaveFlashColor = 0xffffff;
 
         // ------------------------------------
-        // 不規則に飛び散る火花の破片
+        // 不規則に飛び散る、赤黒い細かい四角の破片
+        // （規模・密度をより大きくしたバージョン）
         // ------------------------------------
+        const shockwaveSparkCount = 55;
 
-        const shockwaveSparkCount = 22;
+        const shockwaveSparkMinSpeed = 2.0;
+        const shockwaveSparkMaxSpeed = 6.0;
 
-        const shockwaveSparkMinSpeed = 1.5;
+        const shockwaveSparkMinSize = 0.08;
+        const shockwaveSparkMaxSize = 0.24;
 
-        const shockwaveSparkMaxSpeed = 4.5;
+        const shockwaveSparkMinDuration = 0.4;
+        const shockwaveSparkMaxDuration = 0.9;
 
-        const shockwaveSparkMinSize = 0.05;
+        const shockwaveSparkGravity = 3.5;
 
-        const shockwaveSparkMaxSize = 0.14;
-
-        const shockwaveSparkMinDuration = 0.35;
-
-        const shockwaveSparkMaxDuration = 0.7;
-
-        const shockwaveSparkGravity = 3.0;
-
-        const shockwaveSparkColorBlue =
-            new THREE.Color(0x2a7dff);
-
-        const shockwaveSparkColorWhite =
-            new THREE.Color(0xffffff);
+        // 「赤黒い」表現のため、深い赤～ほぼ黒の間でランダムに混ぜる
+        const shockwaveSparkColorRed = new THREE.Color(0xff2200);
+        const shockwaveSparkColorBlack = new THREE.Color(0x120000);
 
         // ------------------------------------
-        // 共通：発生位置（キャラクターの少し前方・胸の高さあたり）
+        // 共通：発生位置（キャラクターの少し前方・地面付近）
         // ------------------------------------
-
-        const shockwaveForwardOffset = 0.6;
-
-        const shockwaveHeightOffset = 0.9;
+        const shockwaveForwardOffset = 0.9;
+        const shockwaveGroundOffset = 0.05;
 
 
         function randomRange(min, max) {
-
-            return (
-                min +
-                Math.random() *
-                    (max - min)
-            );
-
+            return min + Math.random() * (max - min);
         }
 
 
         function spawnShockwave() {
 
-            if (!targetModel) {
+            if (!targetModel) return;
 
-                return;
-
-            }
-
-            // キャラクターの少し前方・胸の高さあたりを発生位置にする
-            const forward =
-                new THREE.Vector3(
-                    0,
-                    0,
-                    1
-                );
-
-            forward.applyQuaternion(
-                targetModel.quaternion
-            );
-
+            // キャラクターの少し前方・地面付近を発生位置にする
+            const forward = new THREE.Vector3(0, 0, 1);
+            forward.applyQuaternion(targetModel.quaternion);
             forward.y = 0;
-
             forward.normalize();
 
-            const basePosition =
-                targetModel.position
-                    .clone()
-                    .addScaledVector(
-                        forward,
-                        shockwaveForwardOffset
-                    );
+            const basePosition = targetModel.position.clone()
+                .addScaledVector(forward, shockwaveForwardOffset);
 
-            basePosition.y +=
-                shockwaveHeightOffset;
+            basePosition.y += shockwaveGroundOffset;
 
 
             // ====================================================
-            // 中心の閃光（発生の瞬間だけ強く光るコア）
+            // 中心の閃光
             // ====================================================
+            const flashGeometry = new THREE.SphereGeometry(shockwaveFlashRadius, 12, 12);
 
-            const flashGeometry =
-                new THREE.SphereGeometry(
-                    shockwaveFlashRadius,
-                    12,
-                    12
-                );
+            const flashMaterial = new THREE.MeshBasicMaterial({
+                color: shockwaveFlashColor,
+                transparent: true,
+                opacity: shockwaveFlashMaxOpacity,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
 
-            const flashMaterial =
-                new THREE.MeshBasicMaterial({
-
-                    color:
-                        shockwaveFlashColor,
-
-                    transparent: true,
-
-                    opacity:
-                        shockwaveFlashMaxOpacity,
-
-                    depthWrite: false,
-
-                    blending:
-                        THREE.AdditiveBlending
-
-                });
-
-            const flashMesh =
-                new THREE.Mesh(
-                    flashGeometry,
-                    flashMaterial
-                );
-
-            flashMesh.position.copy(
-                basePosition
-            );
-
+            const flashMesh = new THREE.Mesh(flashGeometry, flashMaterial);
+            flashMesh.position.copy(basePosition);
             scene.add(flashMesh);
 
             shockwaves.push({
-
                 kind: 'flash',
-
                 mesh: flashMesh,
-
                 elapsed: 0,
-
-                duration:
-                    shockwaveFlashDuration,
-
-                maxScale:
-                    shockwaveFlashMaxScale,
-
-                startOpacity:
-                    shockwaveFlashMaxOpacity
-
+                duration: shockwaveFlashDuration,
+                maxScale: shockwaveFlashMaxScale,
+                startOpacity: shockwaveFlashMaxOpacity
             });
 
 
             // ====================================================
-            // 不規則に飛び散る火花の破片
+            // 不規則に飛び散る、赤黒い細かい四角の破片
             //
-            // それぞれ違う形・大きさ・色（青～白のランダム混合）・
+            // それぞれ違う大きさ・色（赤～黒のランダム混合）・
             // 初速・寿命を持たせ、重力で落ちながらフェードアウトする
             // ====================================================
+            for (let i = 0; i < shockwaveSparkCount; i++) {
 
-            for (
-                let i = 0;
-                i <
-                shockwaveSparkCount;
-                i++
-            ) {
+                // 「細かい四角」を表現するため、薄い箱型ジオメトリを使用
+                const size = randomRange(shockwaveSparkMinSize, shockwaveSparkMaxSize);
 
-                // 不規則な形にするため、四面体を
-                // 軸ごとにランダムな比率で歪ませる
-                const size =
-                    randomRange(
-                        shockwaveSparkMinSize,
-                        shockwaveSparkMaxSize
-                    );
-
-                const sparkGeometry =
-                    new THREE.TetrahedronGeometry(
-                        size
-                    );
-
-                sparkGeometry.scale(
-                    randomRange(0.6, 1.6),
-                    randomRange(0.6, 1.6),
-                    randomRange(0.6, 1.6)
+                const sparkGeometry = new THREE.BoxGeometry(
+                    size,
+                    size,
+                    size * randomRange(0.15, 0.35)
                 );
 
-                // 青と白をランダムな比率で混ぜた色
-                const sparkColor =
-                    shockwaveSparkColorBlue
-                        .clone()
-                        .lerp(
-                            shockwaveSparkColorWhite,
-                            Math.random()
-                        );
+                // 赤と黒をランダムな比率で混ぜた色
+                const sparkColor = shockwaveSparkColorRed.clone()
+                    .lerp(shockwaveSparkColorBlack, Math.random());
 
-                const sparkMaterial =
-                    new THREE.MeshBasicMaterial({
+                const sparkMaterial = new THREE.MeshBasicMaterial({
+                    color: sparkColor,
+                    transparent: true,
+                    opacity: 1.0,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending
+                });
 
-                        color:
-                            sparkColor,
-
-                        transparent: true,
-
-                        opacity: 1.0,
-
-                        side: THREE.DoubleSide,
-
-                        depthWrite: false,
-
-                        blending:
-                            THREE.AdditiveBlending
-
-                    });
-
-                const sparkMesh =
-                    new THREE.Mesh(
-                        sparkGeometry,
-                        sparkMaterial
-                    );
-
-                sparkMesh.position.copy(
-                    basePosition
-                );
+                const sparkMesh = new THREE.Mesh(sparkGeometry, sparkMaterial);
+                sparkMesh.position.copy(basePosition);
 
                 sparkMesh.rotation.set(
-                    Math.random() *
-                        Math.PI * 2,
-                    Math.random() *
-                        Math.PI * 2,
-                    Math.random() *
-                        Math.PI * 2
+                    Math.random() * Math.PI * 2,
+                    Math.random() * Math.PI * 2,
+                    Math.random() * Math.PI * 2
                 );
 
-                // 全方位（球面上のランダムな方向）へ不規則に飛び散らせる
-                const azimuth =
-                    Math.random() *
-                    Math.PI * 2;
+                // 全方位（球面上のランダムな方向、やや上寄り）へ飛び散らせる
+                const azimuth = Math.random() * Math.PI * 2;
+                const elevation = randomRange(-0.1, 1.0);
+                const horizontalRadius = Math.cos(elevation);
 
-                const elevation =
-                    randomRange(
-                        -0.3,
-                        1.0
-                    );
+                const direction = new THREE.Vector3(
+                    Math.cos(azimuth) * horizontalRadius,
+                    Math.sin(elevation),
+                    Math.sin(azimuth) * horizontalRadius
+                );
 
-                const horizontalRadius =
-                    Math.cos(
-                        elevation
-                    );
+                const speed = randomRange(shockwaveSparkMinSpeed, shockwaveSparkMaxSpeed);
+                const velocity = direction.multiplyScalar(speed);
 
-                const direction =
-                    new THREE.Vector3(
-                        Math.cos(azimuth) *
-                            horizontalRadius,
-                        Math.sin(
-                            elevation
-                        ),
-                        Math.sin(azimuth) *
-                            horizontalRadius
-                    );
-
-                const speed =
-                    randomRange(
-                        shockwaveSparkMinSpeed,
-                        shockwaveSparkMaxSpeed
-                    );
-
-                const velocity =
-                    direction.multiplyScalar(
-                        speed
-                    );
-
-                const angularVelocity =
-                    new THREE.Vector3(
-                        randomRange(-8, 8),
-                        randomRange(-8, 8),
-                        randomRange(-8, 8)
-                    );
+                const angularVelocity = new THREE.Vector3(
+                    randomRange(-10, 10),
+                    randomRange(-10, 10),
+                    randomRange(-10, 10)
+                );
 
                 scene.add(sparkMesh);
 
                 shockwaves.push({
-
                     kind: 'spark',
-
                     mesh: sparkMesh,
-
                     elapsed: 0,
-
-                    duration:
-                        randomRange(
-                            shockwaveSparkMinDuration,
-                            shockwaveSparkMaxDuration
-                        ),
-
+                    duration: randomRange(shockwaveSparkMinDuration, shockwaveSparkMaxDuration),
                     velocity: velocity,
-
-                    angularVelocity:
-                        angularVelocity,
-
+                    angularVelocity: angularVelocity,
                     startOpacity: 1.0,
-
                     startScale: 1.0
-
                 });
 
             }
@@ -1162,117 +647,184 @@
 
         function updateShockwaves(delta) {
 
-            for (
-                let i =
-                    shockwaves.length - 1;
-                i >= 0;
-                i--
-            ) {
+            for (let i = shockwaves.length - 1; i >= 0; i--) {
 
-                const effect =
-                    shockwaves[i];
+                const effect = shockwaves[i];
+                effect.elapsed += delta;
 
-                effect.elapsed +=
-                    delta;
+                const t = Math.min(effect.elapsed / effect.duration, 1);
 
-                const t =
-                    Math.min(
-                        effect.elapsed /
-                            effect.duration,
-                        1
-                    );
+                if (effect.kind === 'flash') {
 
+                    const scale = 1 + t * (effect.maxScale - 1);
+                    effect.mesh.scale.set(scale, scale, scale);
+                    effect.mesh.material.opacity = effect.startOpacity * (1 - t);
 
-                if (
-                    effect.kind ===
-                    'flash'
-                ) {
+                } else {
 
-                    // ------------------------------------
-                    // 中心の閃光：広がりながらフェードアウト
-                    // ------------------------------------
+                    effect.velocity.y -= shockwaveSparkGravity * delta;
+                    effect.mesh.position.addScaledVector(effect.velocity, delta);
 
-                    const scale =
-                        1 +
-                        t *
-                            (effect.maxScale -
-                                1);
+                    effect.mesh.rotation.x += effect.angularVelocity.x * delta;
+                    effect.mesh.rotation.y += effect.angularVelocity.y * delta;
+                    effect.mesh.rotation.z += effect.angularVelocity.z * delta;
 
-                    effect.mesh.scale.set(
-                        scale,
-                        scale,
-                        scale
-                    );
-
-                    effect.mesh.material.opacity =
-                        effect.startOpacity *
-                        (1 - t);
+                    const scale = effect.startScale * (1 - t * 0.5);
+                    effect.mesh.scale.set(scale, scale, scale);
+                    effect.mesh.material.opacity = effect.startOpacity * (1 - t);
 
                 }
-
-                else {
-
-                    // ------------------------------------
-                    // 火花の破片：重力で落ちながら
-                    // 不規則に回転・フェードアウトする
-                    // ------------------------------------
-
-                    effect.velocity.y -=
-                        shockwaveSparkGravity *
-                        delta;
-
-                    effect.mesh.position.addScaledVector(
-                        effect.velocity,
-                        delta
-                    );
-
-                    effect.mesh.rotation.x +=
-                        effect.angularVelocity.x *
-                        delta;
-
-                    effect.mesh.rotation.y +=
-                        effect.angularVelocity.y *
-                        delta;
-
-                    effect.mesh.rotation.z +=
-                        effect.angularVelocity.z *
-                        delta;
-
-                    const scale =
-                        effect.startScale *
-                        (1 - t * 0.5);
-
-                    effect.mesh.scale.set(
-                        scale,
-                        scale,
-                        scale
-                    );
-
-                    effect.mesh.material.opacity =
-                        effect.startOpacity *
-                        (1 - t);
-
-                }
-
 
                 if (t >= 1) {
-
-                    scene.remove(
-                        effect.mesh
-                    );
-
+                    scene.remove(effect.mesh);
                     effect.mesh.geometry.dispose();
-
                     effect.mesh.material.dispose();
-
-                    shockwaves.splice(
-                        i,
-                        1
-                    );
-
+                    shockwaves.splice(i, 1);
                 }
 
             }
+
+        }
+
+
+        // ============================================================
+        // 斬撃残像エフェクト
+        //
+        // 「鉄製武器」風の名前のメッシュ、または「センター」系の
+        // 名前のボーン（slashSourceNode）の軌跡を、赤黒いリボン状の
+        // メッシュとして描画する。jump中のみ新しい点を追加し、
+        // 追加した点は一定時間で自然にフェードアウトして消える。
+        // ============================================================
+        const slashTrailPoints = [];
+        const slashTrailMaxPoints = 40;
+        const slashTrailMaxLifetime = 0.4;
+        const slashTrailWidth = 0.18;
+
+        // 新しい点ほど赤く、古い点ほど黒に近づく
+        const slashTrailColorNew = new THREE.Color(0xff1a1a);
+        const slashTrailColorOld = new THREE.Color(0x120000);
+
+        let slashTrailMesh = null;
+
+        const slashTrailMaterial = new THREE.MeshBasicMaterial({
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.9,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+
+        const slashTrailWorldPosition = new THREE.Vector3();
+
+
+        function updateSlashTrailMesh() {
+
+            if (slashTrailPoints.length < 2) {
+                if (slashTrailMesh) slashTrailMesh.visible = false;
+                return;
+            }
+
+            const positions = [];
+            const colors = [];
+            const indices = [];
+
+            for (let i = 0; i < slashTrailPoints.length; i++) {
+
+                const point = slashTrailPoints[i];
+
+                // タンジェント（進行方向）を計算
+                let tangent;
+
+                if (i === 0) {
+                    tangent = slashTrailPoints[i + 1].position.clone().sub(point.position);
+                } else if (i === slashTrailPoints.length - 1) {
+                    tangent = point.position.clone().sub(slashTrailPoints[i - 1].position);
+                } else {
+                    tangent = slashTrailPoints[i + 1].position.clone().sub(slashTrailPoints[i - 1].position);
+                }
+
+                if (tangent.lengthSq() < 0.0001) tangent.set(0, 0, 1);
+                tangent.normalize();
+
+                let side = new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0));
+                if (side.lengthSq() < 0.0001) side.set(1, 0, 0);
+                side.normalize();
+
+                const lifeRatio = 1 - Math.min(point.age / slashTrailMaxLifetime, 1);
+                const halfWidth = (slashTrailWidth * lifeRatio) / 2;
+
+                const left = point.position.clone().addScaledVector(side, halfWidth);
+                const right = point.position.clone().addScaledVector(side, -halfWidth);
+
+                positions.push(left.x, left.y, left.z);
+                positions.push(right.x, right.y, right.z);
+
+                const pointColor = slashTrailColorNew.clone().lerp(slashTrailColorOld, 1 - lifeRatio);
+
+                colors.push(pointColor.r, pointColor.g, pointColor.b);
+                colors.push(pointColor.r, pointColor.g, pointColor.b);
+
+            }
+
+            for (let i = 0; i < slashTrailPoints.length - 1; i++) {
+
+                const a = i * 2;
+                const b = i * 2 + 1;
+                const c = (i + 1) * 2;
+                const d = (i + 1) * 2 + 1;
+
+                indices.push(a, b, c);
+                indices.push(b, d, c);
+
+            }
+
+            if (!slashTrailMesh) {
+                slashTrailMesh = new THREE.Mesh(new THREE.BufferGeometry(), slashTrailMaterial);
+                scene.add(slashTrailMesh);
+            } else {
+                slashTrailMesh.geometry.dispose();
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            geometry.setIndex(indices);
+
+            slashTrailMesh.geometry = geometry;
+            slashTrailMesh.visible = true;
+
+        }
+
+
+        function updateSlashTrail(delta) {
+
+            for (let i = slashTrailPoints.length - 1; i >= 0; i--) {
+
+                slashTrailPoints[i].age += delta;
+
+                if (slashTrailPoints[i].age > slashTrailMaxLifetime) {
+                    slashTrailPoints.splice(i, 1);
+                }
+
+            }
+
+            if (isJumping && slashSourceNode) {
+
+                slashSourceNode.getWorldPosition(slashTrailWorldPosition);
+
+                slashTrailPoints.push({
+                    position: slashTrailWorldPosition.clone(),
+                    age: 0
+                });
+
+                if (slashTrailPoints.length > slashTrailMaxPoints) {
+                    slashTrailPoints.shift();
+                }
+
+            }
+
+            updateSlashTrailMesh();
 
         }
 
@@ -1283,69 +835,34 @@
         // jumpの22フレーム目（インパクトのピーク）に合わせて発生させ、
         // 爽快感を出すために画面を短く揺らす
         // ============================================================
-
         let cameraShakeElapsed = null;
-
         const cameraShakeDuration = 0.35;
-
         const cameraShakeMagnitude = 0.12;
 
 
         function triggerCameraShake() {
-
             cameraShakeElapsed = 0;
-
         }
 
 
         function applyCameraShake(delta) {
 
-            if (
-                cameraShakeElapsed ===
-                null
-            ) {
+            if (cameraShakeElapsed === null) return;
 
-                return;
-
-            }
-
-            cameraShakeElapsed +=
-                delta;
-
-            const t =
-                cameraShakeElapsed /
-                cameraShakeDuration;
+            cameraShakeElapsed += delta;
+            const t = cameraShakeElapsed / cameraShakeDuration;
 
             if (t >= 1) {
-
-                cameraShakeElapsed =
-                    null;
-
+                cameraShakeElapsed = null;
                 return;
-
             }
 
-            // 減衰を強めにかけて、最初だけガツンと
-            // 揺れてすぐ収まるようにする
-            const decay =
-                1 - t;
+            const decay = 1 - t;
+            const magnitude = cameraShakeMagnitude * decay * decay;
 
-            const magnitude =
-                cameraShakeMagnitude *
-                decay *
-                decay;
-
-            camera.position.x +=
-                (Math.random() * 2 - 1) *
-                magnitude;
-
-            camera.position.y +=
-                (Math.random() * 2 - 1) *
-                magnitude;
-
-            camera.position.z +=
-                (Math.random() * 2 - 1) *
-                magnitude;
+            camera.position.x += (Math.random() * 2 - 1) * magnitude;
+            camera.position.y += (Math.random() * 2 - 1) * magnitude;
+            camera.position.z += (Math.random() * 2 - 1) * magnitude;
 
         }
 
@@ -1353,82 +870,41 @@
         // ============================================================
         // 現在、移動入力があるかどうか
         // ============================================================
-
         function hasMoveInput() {
-
             return (
-                joystickX !== 0 ||
-                joystickY !== 0 ||
-                keyState.up ||
-                keyState.down ||
-                keyState.left ||
-                keyState.right
+                joystickX !== 0 || joystickY !== 0 ||
+                keyState.up || keyState.down || keyState.left || keyState.right
             );
-
         }
 
 
         // ============================================================
         // ジャンプ
         // ============================================================
-
         function jump() {
 
-            if (
-                !mixer ||
-                !actions.jump
-            ) {
-
-                return;
-
-            }
+            if (!mixer || !actions.jump) return;
 
             // ジャンプ中は再度ジャンプしない
-            if (isJumping) {
-
-                return;
-
-            }
+            if (isJumping) return;
 
             isJumping = true;
-
-            // ジャンプ開始時にフレーム数をリセット
             jumpFrameCount = 0;
-
-            // 今回のjump用に衝撃波の発生状態をリセット
             jumpShockwaveSpawned = false;
 
-            const jumpAction =
-                actions.jump;
+            // 新しいジャンプの斬撃残像は、前回の残像と繋がらないよう
+            // ここで一旦リセットする
+            slashTrailPoints.length = 0;
 
+            const jumpAction = actions.jump;
 
-            // 現在のアニメーションを停止
-            if (currentAction) {
+            if (currentAction) currentAction.fadeOut(0.1);
 
-                currentAction.fadeOut(
-                    0.1
-                );
+            jumpAction.reset().setLoop(THREE.LoopOnce, 1);
+            jumpAction.clampWhenFinished = true;
+            jumpAction.fadeIn(0.1).play();
 
-            }
-
-
-            // jumpを最初から再生
-            jumpAction
-                .reset()
-                .setLoop(
-                    THREE.LoopOnce,
-                    1
-                );
-
-            jumpAction.clampWhenFinished =
-                true;
-
-            jumpAction
-                .fadeIn(0.1)
-                .play();
-
-            currentAction =
-                jumpAction;
+            currentAction = jumpAction;
 
         }
 
@@ -1436,64 +912,29 @@
         // ============================================================
         // ジャンプボタン
         // ============================================================
+        const jumpButton = document.getElementById('jump-button');
 
-        const jumpButton =
-            document.getElementById(
-                'jump-button'
-            );
-
-
-        jumpButton.addEventListener(
-            'pointerdown',
-            (e) => {
-
-                e.preventDefault();
-                e.stopPropagation();
-
-                jump();
-
-            },
-            {
-                passive: false
-            }
-        );
+        jumpButton.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            jump();
+        }, { passive: false });
 
 
         // ============================================================
         // カメラ位置更新
         // ============================================================
-
         function updateCameraPosition() {
 
-            if (!targetModel) {
-                return;
-            }
+            if (!targetModel) return;
 
-            const targetPosition =
-                targetModel.position
-                    .clone()
-                    .add(
-                        new THREE.Vector3(
-                            0,
-                            targetHeightOffset +
-                                jumpHeightOffset,
-                            0
-                        )
-                    );
+            const targetPosition = targetModel.position.clone()
+                .add(new THREE.Vector3(0, targetHeightOffset + jumpHeightOffset, 0));
 
-            const offset =
-                new THREE.Vector3()
-                    .setFromSpherical(
-                        cameraSpherical
-                    );
+            const offset = new THREE.Vector3().setFromSpherical(cameraSpherical);
 
-            camera.position
-                .copy(targetPosition)
-                .add(offset);
-
-            camera.lookAt(
-                targetPosition
-            );
+            camera.position.copy(targetPosition).add(offset);
+            camera.lookAt(targetPosition);
 
         }
 
@@ -1501,223 +942,97 @@
         // ============================================================
         // アナログスティック
         // ============================================================
-
-        const joystickContainer =
-            document.getElementById(
-                'joystick-container'
-            );
-
-        const joystickStick =
-            document.getElementById(
-                'joystick-stick'
-            );
+        const joystickContainer = document.getElementById('joystick-container');
+        const joystickStick = document.getElementById('joystick-stick');
 
         let joystickPointerId = null;
-
         let joystickX = 0;
-
         let joystickY = 0;
 
         const joystickRadius = 52;
-
         const joystickDeadZone = 0.08;
 
 
-        // ------------------------------------------------------------
-        // スティック位置更新
-        // ------------------------------------------------------------
+        function updateJoystick(clientX, clientY) {
 
-        function updateJoystick(
-            clientX,
-            clientY
-        ) {
+            const rect = joystickContainer.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
 
-            const rect =
-                joystickContainer.getBoundingClientRect();
+            let dx = clientX - centerX;
+            let dy = clientY - centerY;
 
-            const centerX =
-                rect.left +
-                rect.width / 2;
+            const distance = Math.hypot(dx, dy);
 
-            const centerY =
-                rect.top +
-                rect.height / 2;
-
-            let dx =
-                clientX -
-                centerX;
-
-            let dy =
-                clientY -
-                centerY;
-
-            const distance =
-                Math.hypot(
-                    dx,
-                    dy
-                );
-
-            if (
-                distance >
-                joystickRadius
-            ) {
-
-                dx =
-                    dx / distance *
-                    joystickRadius;
-
-                dy =
-                    dy / distance *
-                    joystickRadius;
-
+            if (distance > joystickRadius) {
+                dx = dx / distance * joystickRadius;
+                dy = dy / distance * joystickRadius;
             }
 
-            joystickStick.style.transform =
-                `translate(${dx}px, ${dy}px)`;
+            joystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
 
-            joystickX =
-                dx /
-                joystickRadius;
+            joystickX = dx / joystickRadius;
+            joystickY = dy / joystickRadius;
 
-            joystickY =
-                dy /
-                joystickRadius;
+            const normalizedDistance = Math.hypot(joystickX, joystickY);
 
-            const normalizedDistance =
-                Math.hypot(
-                    joystickX,
-                    joystickY
-                );
-
-            if (
-                normalizedDistance <
-                joystickDeadZone
-            ) {
-
+            if (normalizedDistance < joystickDeadZone) {
                 joystickX = 0;
-
                 joystickY = 0;
-
             }
 
         }
 
-
-        // ------------------------------------------------------------
-        // スティックリセット
-        // ------------------------------------------------------------
 
         function resetJoystick() {
-
-            joystickPointerId =
-                null;
-
+            joystickPointerId = null;
             joystickX = 0;
-
             joystickY = 0;
-
-            joystickStick.style.transform =
-                'translate(0px, 0px)';
-
+            joystickStick.style.transform = 'translate(0px, 0px)';
         }
 
-
-        // ------------------------------------------------------------
-        // スティック開始
-        // ------------------------------------------------------------
 
         function handleJoystickStart(e) {
 
             e.preventDefault();
             e.stopPropagation();
 
-            if (
-                joystickPointerId !== null
-            ) {
+            if (joystickPointerId !== null) return;
 
-                return;
-
-            }
-
-            joystickPointerId =
-                e.pointerId;
+            joystickPointerId = e.pointerId;
 
             try {
-
-                joystickContainer.setPointerCapture(
-                    e.pointerId
-                );
-
+                joystickContainer.setPointerCapture(e.pointerId);
             } catch (err) {}
 
-            updateJoystick(
-                e.clientX,
-                e.clientY
-            );
+            updateJoystick(e.clientX, e.clientY);
 
         }
 
-
-        // ------------------------------------------------------------
-        // スティック移動
-        // ------------------------------------------------------------
 
         function handleJoystickMove(e) {
 
-            if (
-                e.pointerId !==
-                joystickPointerId
-            ) {
-
-                return;
-
-            }
+            if (e.pointerId !== joystickPointerId) return;
 
             e.preventDefault();
             e.stopPropagation();
 
-            updateJoystick(
-                e.clientX,
-                e.clientY
-            );
+            updateJoystick(e.clientX, e.clientY);
 
         }
 
 
-        // ------------------------------------------------------------
-        // スティック終了
-        // ------------------------------------------------------------
-
         function handleJoystickEnd(e) {
 
-            if (
-                e.pointerId !==
-                joystickPointerId
-            ) {
-
-                return;
-
-            }
+            if (e.pointerId !== joystickPointerId) return;
 
             e.preventDefault();
             e.stopPropagation();
 
             try {
-
-                if (
-                    joystickContainer
-                        .hasPointerCapture(
-                            e.pointerId
-                        )
-                ) {
-
-                    joystickContainer
-                        .releasePointerCapture(
-                            e.pointerId
-                        );
-
+                if (joystickContainer.hasPointerCapture(e.pointerId)) {
+                    joystickContainer.releasePointerCapture(e.pointerId);
                 }
-
             } catch (err) {}
 
             resetJoystick();
@@ -1725,212 +1040,65 @@
         }
 
 
-        joystickContainer.addEventListener(
-            'pointerdown',
-            handleJoystickStart,
-            {
-                passive: false
-            }
-        );
-
-        joystickContainer.addEventListener(
-            'pointermove',
-            handleJoystickMove,
-            {
-                passive: false
-            }
-        );
-
-        joystickContainer.addEventListener(
-            'pointerup',
-            handleJoystickEnd,
-            {
-                passive: false
-            }
-        );
-
-        joystickContainer.addEventListener(
-            'pointercancel',
-            handleJoystickEnd,
-            {
-                passive: false
-            }
-        );
+        joystickContainer.addEventListener('pointerdown', handleJoystickStart, { passive: false });
+        joystickContainer.addEventListener('pointermove', handleJoystickMove, { passive: false });
+        joystickContainer.addEventListener('pointerup', handleJoystickEnd, { passive: false });
+        joystickContainer.addEventListener('pointercancel', handleJoystickEnd, { passive: false });
 
 
         // ============================================================
         // キーボード操作
         // ============================================================
-
         const keyState = {
-
             up: false,
             down: false,
             left: false,
             right: false
-
         };
 
 
-        window.addEventListener(
-            'keydown',
-            (e) => {
-
-                if (
-                    e.key === 'ArrowUp' ||
-                    e.key === 'w'
-                ) {
-
-                    keyState.up = true;
-
-                }
-
-                if (
-                    e.key === 'ArrowDown' ||
-                    e.key === 's'
-                ) {
-
-                    keyState.down = true;
-
-                }
-
-                if (
-                    e.key === 'ArrowLeft' ||
-                    e.key === 'a'
-                ) {
-
-                    keyState.left = true;
-
-                }
-
-                if (
-                    e.key === 'ArrowRight' ||
-                    e.key === 'd'
-                ) {
-
-                    keyState.right = true;
-
-                }
-
-            }
-        );
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'w') keyState.up = true;
+            if (e.key === 'ArrowDown' || e.key === 's') keyState.down = true;
+            if (e.key === 'ArrowLeft' || e.key === 'a') keyState.left = true;
+            if (e.key === 'ArrowRight' || e.key === 'd') keyState.right = true;
+        });
 
 
-        window.addEventListener(
-            'keyup',
-            (e) => {
-
-                if (
-                    e.key === 'ArrowUp' ||
-                    e.key === 'w'
-                ) {
-
-                    keyState.up = false;
-
-                }
-
-                if (
-                    e.key === 'ArrowDown' ||
-                    e.key === 's'
-                ) {
-
-                    keyState.down = false;
-
-                }
-
-                if (
-                    e.key === 'ArrowLeft' ||
-                    e.key === 'a'
-                ) {
-
-                    keyState.left = false;
-
-                }
-
-                if (
-                    e.key === 'ArrowRight' ||
-                    e.key === 'd'
-                ) {
-
-                    keyState.right = false;
-
-                }
-
-            }
-        );
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'w') keyState.up = false;
+            if (e.key === 'ArrowDown' || e.key === 's') keyState.down = false;
+            if (e.key === 'ArrowLeft' || e.key === 'a') keyState.left = false;
+            if (e.key === 'ArrowRight' || e.key === 'd') keyState.right = false;
+        });
 
 
         // ============================================================
         // カメラ操作
         // ============================================================
-
         let isCameraDragging = false;
-
         let cameraPointerId = null;
-
         let previousTouchX = 0;
-
         let previousTouchY = 0;
 
 
-        // ------------------------------------------------------------
-        // カメラ開始
-        // ------------------------------------------------------------
-
         function handleRightScreenStart(e) {
 
-            if (
-                e.target.closest(
-                    '#joystick-container'
-                )
-            ) {
+            if (e.target.closest('#joystick-container')) return;
+            if (e.target.closest('#jump-button')) return;
+            if (isCameraDragging) return;
 
-                return;
-
-            }
-
-            if (
-                e.target.closest(
-                    '#jump-button'
-                )
-            ) {
-
-                return;
-
-            }
-
-            if (isCameraDragging) {
-
-                return;
-
-            }
-
-            if (
-                e.clientX >=
-                window.innerWidth / 2
-            ) {
+            if (e.clientX >= window.innerWidth / 2) {
 
                 e.preventDefault();
 
-                isCameraDragging =
-                    true;
-
-                cameraPointerId =
-                    e.pointerId;
-
-                previousTouchX =
-                    e.clientX;
-
-                previousTouchY =
-                    e.clientY;
+                isCameraDragging = true;
+                cameraPointerId = e.pointerId;
+                previousTouchX = e.clientX;
+                previousTouchY = e.clientY;
 
                 try {
-
-                    renderer.domElement
-                        .setPointerCapture(
-                            e.pointerId
-                        );
-
+                    renderer.domElement.setPointerCapture(e.pointerId);
                 } catch (err) {}
 
             }
@@ -1938,144 +1106,54 @@
         }
 
 
-        // ------------------------------------------------------------
-        // カメラ移動
-        // ------------------------------------------------------------
-
         function handleRightScreenMove(e) {
 
-            if (!isCameraDragging) {
-
-                return;
-
-            }
-
-            if (
-                e.pointerId !==
-                cameraPointerId
-            ) {
-
-                return;
-
-            }
+            if (!isCameraDragging) return;
+            if (e.pointerId !== cameraPointerId) return;
 
             e.preventDefault();
 
-            const deltaX =
-                e.clientX -
-                previousTouchX;
+            const deltaX = e.clientX - previousTouchX;
+            const deltaY = e.clientY - previousTouchY;
 
-            const deltaY =
-                e.clientY -
-                previousTouchY;
+            cameraSpherical.theta -= deltaX * cameraTouchSensitivity;
+            cameraSpherical.phi -= deltaY * cameraTouchSensitivity;
 
-            cameraSpherical.theta -=
-                deltaX *
-                cameraTouchSensitivity;
+            cameraSpherical.phi = Math.max(
+                minPolarAngle,
+                Math.min(maxPolarAngle, cameraSpherical.phi)
+            );
 
-            cameraSpherical.phi -=
-                deltaY *
-                cameraTouchSensitivity;
-
-            cameraSpherical.phi =
-                Math.max(
-                    minPolarAngle,
-                    Math.min(
-                        maxPolarAngle,
-                        cameraSpherical.phi
-                    )
-                );
-
-            previousTouchX =
-                e.clientX;
-
-            previousTouchY =
-                e.clientY;
+            previousTouchX = e.clientX;
+            previousTouchY = e.clientY;
 
         }
 
-
-        // ------------------------------------------------------------
-        // カメラ終了
-        // ------------------------------------------------------------
 
         function handleRightScreenEnd(e) {
 
-            if (!isCameraDragging) {
-
-                return;
-
-            }
-
-            if (
-                e.pointerId !==
-                cameraPointerId
-            ) {
-
-                return;
-
-            }
+            if (!isCameraDragging) return;
+            if (e.pointerId !== cameraPointerId) return;
 
             e.preventDefault();
 
-            isCameraDragging =
-                false;
+            isCameraDragging = false;
 
             try {
-
-                if (
-                    renderer.domElement
-                        .hasPointerCapture(
-                            e.pointerId
-                        )
-                ) {
-
-                    renderer.domElement
-                        .releasePointerCapture(
-                            e.pointerId
-                        );
-
+                if (renderer.domElement.hasPointerCapture(e.pointerId)) {
+                    renderer.domElement.releasePointerCapture(e.pointerId);
                 }
-
             } catch (err) {}
 
-            cameraPointerId =
-                null;
+            cameraPointerId = null;
 
         }
 
 
-        window.addEventListener(
-            'pointerdown',
-            handleRightScreenStart,
-            {
-                passive: false
-            }
-        );
-
-        window.addEventListener(
-            'pointermove',
-            handleRightScreenMove,
-            {
-                passive: false
-            }
-        );
-
-        window.addEventListener(
-            'pointerup',
-            handleRightScreenEnd,
-            {
-                passive: false
-            }
-        );
-
-        window.addEventListener(
-            'pointercancel',
-            handleRightScreenEnd,
-            {
-                passive: false
-            }
-        );
+        window.addEventListener('pointerdown', handleRightScreenStart, { passive: false });
+        window.addEventListener('pointermove', handleRightScreenMove, { passive: false });
+        window.addEventListener('pointerup', handleRightScreenEnd, { passive: false });
+        window.addEventListener('pointercancel', handleRightScreenEnd, { passive: false });
 
 
         // ============================================================
@@ -2084,27 +1162,12 @@
         // jumpが中断／完走してisJumpingがfalseになった直後に呼ばれ、
         // その時点の入力状態に応じてdash / idleへ切り替える
         // ============================================================
-
         function updateMovementAnimation() {
 
             if (hasMoveInput()) {
-
-                if (actions.dash) {
-
-                    setAction('dash');
-
-                }
-
-            }
-
-            else {
-
-                if (actions.idle) {
-
-                    setAction('idle');
-
-                }
-
+                if (actions.dash) setAction('dash');
+            } else {
+                if (actions.idle) setAction('idle');
             }
 
         }
@@ -2113,244 +1176,87 @@
         // ============================================================
         // キャラクター移動
         // ============================================================
-
         function updateModelMovement(delta) {
 
-            if (!targetModel) {
+            if (!targetModel) return;
 
-                return;
-
-            }
-
-            let moveX =
-                joystickX;
-
-            let moveY =
-                joystickY;
+            let moveX = joystickX;
+            let moveY = joystickY;
 
             let currentSpeed = 0;
 
             let keyboardX = 0;
-
             let keyboardY = 0;
 
+            if (keyState.right) keyboardX += 1;
+            if (keyState.left) keyboardX -= 1;
+            if (keyState.up) keyboardY -= 1;
+            if (keyState.down) keyboardY += 1;
 
-            if (keyState.right) {
+            if (keyboardX !== 0 || keyboardY !== 0) {
 
-                keyboardX += 1;
+                const length = Math.hypot(keyboardX, keyboardY);
+                moveX = keyboardX / length;
+                moveY = keyboardY / length;
+                currentSpeed = maxMoveSpeed;
 
-            }
+            } else {
 
-            if (keyState.left) {
-
-                keyboardX -= 1;
-
-            }
-
-            if (keyState.up) {
-
-                keyboardY -= 1;
-
-            }
-
-            if (keyState.down) {
-
-                keyboardY += 1;
-
-            }
-
-
-            if (
-                keyboardX !== 0 ||
-                keyboardY !== 0
-            ) {
-
-                const length =
-                    Math.hypot(
-                        keyboardX,
-                        keyboardY
-                    );
-
-                moveX =
-                    keyboardX /
-                    length;
-
-                moveY =
-                    keyboardY /
-                    length;
-
-                currentSpeed =
-                    maxMoveSpeed;
-
-            }
-
-            else {
-
-                // ------------------------------------
-                // スティックの傾きに関係なく
-                // 入力があれば常に最大速度
-                // ------------------------------------
-
-                if (
-                    moveX !== 0 ||
-                    moveY !== 0
-                ) {
-
-                    currentSpeed =
-                        maxMoveSpeed;
-
-                }
-
-                else {
-
+                if (moveX !== 0 || moveY !== 0) {
+                    currentSpeed = maxMoveSpeed;
+                } else {
                     currentSpeed = 0;
-
                 }
 
             }
 
+            const isMoving = currentSpeed > 0;
 
-            const isMoving =
-                currentSpeed > 0;
-
-
-            // ========================================================
             // jump中は移動を完全に禁止せず、低速での移動のみ許可する
-            // （アニメーションはjumpのまま維持し、dash/idleへは
-            //   切り替えない）
-            // ========================================================
-
             if (isJumping) {
-
-                currentSpeed *=
-                    jumpMoveSpeedFactor;
-
+                currentSpeed *= jumpMoveSpeedFactor;
             }
 
-
-            // ========================================================
-            // 移動アニメーション
-            //
             // jump中はここでdash/idleへ切り替えない
-            // （jumpアニメーションを維持したまま低速移動するだけ）
-            // ========================================================
-
             if (!isJumping) {
 
                 if (isMoving) {
-
-                    if (
-                        actions.dash
-                    ) {
-
-                        setAction('dash');
-
-                    }
-
-                }
-
-                else {
-
-                    if (
-                        actions.idle
-                    ) {
-
-                        setAction('idle');
-
-                    }
-
+                    if (actions.dash) setAction('dash');
+                } else {
+                    if (actions.idle) setAction('idle');
                 }
 
             }
 
-
-            // ========================================================
             // 実際の移動
-            // ========================================================
-
             if (isMoving) {
 
-                const cameraForward =
-                    new THREE.Vector3();
-
-                camera.getWorldDirection(
-                    cameraForward
-                );
-
+                const cameraForward = new THREE.Vector3();
+                camera.getWorldDirection(cameraForward);
                 cameraForward.y = 0;
-
                 cameraForward.normalize();
 
+                const cameraRight = new THREE.Vector3();
+                cameraRight.crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
 
-                const cameraRight =
-                    new THREE.Vector3();
-
-                cameraRight.crossVectors(
-                    cameraForward,
-                    new THREE.Vector3(
-                        0,
-                        1,
-                        0
-                    )
-                ).normalize();
-
-
-                const moveDirection =
-                    new THREE.Vector3();
-
+                const moveDirection = new THREE.Vector3();
                 moveDirection
-                    .addScaledVector(
-                        cameraRight,
-                        moveX
-                    )
-                    .addScaledVector(
-                        cameraForward,
-                        -moveY
-                    );
+                    .addScaledVector(cameraRight, moveX)
+                    .addScaledVector(cameraForward, -moveY);
 
-
-                if (
-                    moveDirection.lengthSq() > 0
-                ) {
-
+                if (moveDirection.lengthSq() > 0) {
                     moveDirection.normalize();
-
                 }
 
+                targetModel.position.addScaledVector(moveDirection, currentSpeed * delta);
 
-                targetModel.position
-                    .addScaledVector(
-                        moveDirection,
-                        currentSpeed * delta
-                    );
-
-
-                // ------------------------------------
                 // 移動方向へキャラクターを向ける
-                // ------------------------------------
+                const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
 
-                const targetAngle =
-                    Math.atan2(
-                        moveDirection.x,
-                        moveDirection.z
-                    );
+                const targetQuaternion = new THREE.Quaternion();
+                targetQuaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle);
 
-                const targetQuaternion =
-                    new THREE.Quaternion();
-
-                targetQuaternion.setFromAxisAngle(
-                    new THREE.Vector3(
-                        0,
-                        1,
-                        0
-                    ),
-                    targetAngle
-                );
-
-                targetModel.quaternion.slerp(
-                    targetQuaternion,
-                    rotationSpeed * delta
-                );
+                targetModel.quaternion.slerp(targetQuaternion, rotationSpeed * delta);
 
             }
 
@@ -2360,130 +1266,68 @@
         // ============================================================
         // メインループ
         // ============================================================
-
         function animate() {
 
-            requestAnimationFrame(
-                animate
-            );
+            requestAnimationFrame(animate);
 
-            const delta =
-                clock.getDelta();
+            const delta = clock.getDelta();
 
-
-            updateModelMovement(
-                delta
-            );
+            updateModelMovement(delta);
 
             // 衝撃波はjump/dash/idleどの状態にも関係なく
             // 常に自身の経過時間だけで更新する
-            updateShockwaves(
-                delta
-            );
+            updateShockwaves(delta);
 
+            // 斬撃残像も同様に、常に経過時間で更新する
+            // （新しい点の追加はisJumping中のみ）
+            updateSlashTrail(delta);
 
             if (mixer) {
 
-                mixer.update(
-                    delta
-                );
+                mixer.update(delta);
 
-
-                // ====================================================
-                // jumpのフレーム数を確認し、
-                // 25フレーム以降かつ移動入力があれば
-                // dashへ中断する（戦闘のリズムを崩さないため）
+                // jumpのフレーム数を確認し、25フレーム以降かつ
+                // 移動入力があればdashへ中断する
+                // （戦闘のリズムを崩さないため）
                 //
                 // 入力が無ければ中断せず、jumpを最後まで再生させ、
-                // 'finished' イベント（アニメーション完走）で
-                // idleへ戻す
-                // ====================================================
+                // 'finished' イベント（アニメーション完走）でidleへ戻す
+                if (isJumping && actions.jump) {
 
-                if (
-                    isJumping &&
-                    actions.jump
-                ) {
+                    jumpFrameCount = Math.floor(actions.jump.time * animationFPS);
 
-                    jumpFrameCount =
-                        Math.floor(
-                            actions.jump.time *
-                            animationFPS
-                        );
-
-                    // --------------------------------------------
                     // 22フレーム目で衝撃波とカメラシェイクを発生
                     // （1回のjumpにつき1回だけ）
-                    // --------------------------------------------
-
-                    if (
-                        !jumpShockwaveSpawned &&
-                        jumpFrameCount >=
-                        shockwaveFrame
-                    ) {
-
+                    if (!jumpShockwaveSpawned && jumpFrameCount >= shockwaveFrame) {
                         spawnShockwave();
-
                         triggerCameraShake();
-
-                        jumpShockwaveSpawned =
-                            true;
-
+                        jumpShockwaveSpawned = true;
                     }
 
-                    if (
-                        jumpFrameCount >=
-                        jumpTransitionFrame &&
-                        hasMoveInput()
-                    ) {
-
-                        // jumpを中断してdashへ
-                        // （以降 updateModelMovement の
-                        //   isJumpingガードが解除され、移動可能になる）
-                        isJumping =
-                            false;
-
+                    if (jumpFrameCount >= jumpTransitionFrame && hasMoveInput()) {
+                        isJumping = false;
                         updateMovementAnimation();
-
                     }
 
                 }
 
             }
 
-
-            // ====================================================
             // ルートボーンの上下動をジャンプの高さオフセットとして
             // 反映する（jump中にct1が飛び上がる分、カメラも追従する）
-            // ====================================================
-
             if (rootBone) {
 
-                targetModel.updateMatrixWorld(
-                    true
-                );
+                targetModel.updateMatrixWorld(true);
+                rootBone.getWorldPosition(rootBoneWorldPosition);
 
-                rootBone.getWorldPosition(
-                    rootBoneWorldPosition
-                );
-
-                jumpHeightOffset =
-                    rootBoneWorldPosition.y -
-                    rootBoneRestY;
+                jumpHeightOffset = rootBoneWorldPosition.y - rootBoneRestY;
 
             }
 
-
             updateCameraPosition();
+            applyCameraShake(delta);
 
-            applyCameraShake(
-                delta
-            );
-
-
-            renderer.render(
-                scene,
-                camera
-            );
+            renderer.render(scene, camera);
 
         }
 
@@ -2493,26 +1337,12 @@
         // ============================================================
         // リサイズ
         // ============================================================
-
-        window.addEventListener(
-            'resize',
-            () => {
-
-                camera.aspect =
-                    window.innerWidth /
-                    window.innerHeight;
-
-                camera.updateProjectionMatrix();
-
-                renderer.setSize(
-                    window.innerWidth,
-                    window.innerHeight
-                );
-
-            }
-        );
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
 
     </script>
-
 </body>
 </html>
