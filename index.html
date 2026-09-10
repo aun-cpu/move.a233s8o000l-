@@ -105,15 +105,22 @@
 
     </style>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <!-- ============================================================
+         Three.js と GLTFLoader を同じバージョンに統一
+    ============================================================ -->
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r160/three.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
 
 </head>
+
 
 <body>
 
     <div id="canvas-container"></div>
+
 
     <!-- ============================================================
          アナログスティック
@@ -127,88 +134,152 @@
 
     </div>
 
+
     <script>
 
         // ============================================================
         // Three.js 基本設定
         // ============================================================
 
-        const scene = new THREE.Scene();
+        const scene =
+            new THREE.Scene();
 
-        const camera = new THREE.PerspectiveCamera(
-            75,
-            window.innerWidth / window.innerHeight,
-            0.1,
-            1000
-        );
 
-        const renderer = new THREE.WebGLRenderer({
-            antialias: true
-        });
+        const camera =
+            new THREE.PerspectiveCamera(
+
+                75,
+
+                window.innerWidth /
+                window.innerHeight,
+
+                0.1,
+
+                1000
+
+            );
+
+
+        const renderer =
+            new THREE.WebGLRenderer({
+
+                antialias: true
+
+            });
+
 
         renderer.setSize(
+
             window.innerWidth,
+
             window.innerHeight
+
         );
+
 
         renderer.setPixelRatio(
+
             Math.min(
+
                 window.devicePixelRatio,
+
                 2
+
             )
+
         );
 
-        renderer.outputEncoding =
-            THREE.sRGBEncoding;
+
+        // r160ではoutputColorSpaceを使用
+        renderer.outputColorSpace =
+            THREE.SRGBColorSpace;
+
 
         renderer.toneMapping =
             THREE.ACESFilmicToneMapping;
 
+
         renderer.toneMappingExposure =
             1.15;
 
+
         document
-            .getElementById('canvas-container')
-            .appendChild(renderer.domElement);
+            .getElementById(
+                'canvas-container'
+            )
+            .appendChild(
+                renderer.domElement
+            );
+
 
         // ============================================================
         // ライト
         // ============================================================
 
         scene.add(
+
             new THREE.AmbientLight(
+
                 0xffffff,
+
                 1.2
+
             )
+
         );
+
 
         const dirLight =
             new THREE.DirectionalLight(
+
                 0xffffff,
+
                 3
+
             );
 
+
         dirLight.position.set(
+
             5,
+
             10,
+
             7.5
+
         );
 
-        scene.add(dirLight);
+
+        scene.add(
+            dirLight
+        );
+
 
         const fillLight =
             new THREE.DirectionalLight(
+
                 0xffffff,
+
                 1.5
+
             );
 
+
         fillLight.position.set(
+
             -5,
+
             5,
+
             -7
+
         );
 
-        scene.add(fillLight);
+
+        scene.add(
+            fillLight
+        );
+
 
         // ============================================================
         // 環境マップ
@@ -219,52 +290,75 @@
                 renderer
             );
 
+
         const environmentScene =
             new THREE.Scene();
+
 
         environmentScene.background =
             new THREE.Color(
                 0x202020
             );
 
+
         const environmentLight =
             new THREE.HemisphereLight(
+
                 0xffffff,
+
                 0x222222,
+
                 2
+
             );
+
 
         environmentScene.add(
             environmentLight
         );
+
 
         const environmentTarget =
             pmremGenerator.fromScene(
                 environmentScene
             );
 
+
         scene.environment =
             environmentTarget.texture;
+
 
         // ============================================================
         // カメラ設定
         // ============================================================
 
-        const targetHeightOffset = 1.5;
+        const targetHeightOffset =
+            1.5;
 
-        const cameraDistance = 1.6;
+
+        const cameraDistance =
+            1.6;
+
 
         let cameraSpherical =
             new THREE.Spherical(
+
                 cameraDistance,
+
                 Math.PI / 2.2,
+
                 0
+
             );
 
-        const minPolarAngle = 0.1;
+
+        const minPolarAngle =
+            0.1;
+
 
         const maxPolarAngle =
             Math.PI / 2 - 0.05;
+
 
         // ============================================================
         // モデル・アニメーション
@@ -276,23 +370,30 @@
 
         let mixer = null;
 
-        // idle / dash を名前で保持
         let actions = {};
 
         let currentAction = null;
 
+
         const clock =
             new THREE.Clock();
+
 
         // ============================================================
         // 移動・カメラ設定
         // ============================================================
 
-        const maxMoveSpeed = 4.0;
+        const maxMoveSpeed =
+            4.0;
 
-        const rotationSpeed = 10.0;
 
-        const cameraTouchSensitivity = 0.005;
+        const rotationSpeed =
+            10.0;
+
+
+        const cameraTouchSensitivity =
+            0.005;
+
 
         // ============================================================
         // GLTF Loader
@@ -300,6 +401,7 @@
 
         const loader =
             new THREE.GLTFLoader();
+
 
         // ============================================================
         // 背景モデル
@@ -314,25 +416,32 @@
                 bgModel =
                     gltf.scene;
 
+
                 bgModel.scale.set(
+
                     2,
+
                     2,
+
                     2
+
                 );
 
-                // ====================================================
-                // 元のマテリアルの色を使用したワイヤーフレーム
-                // ====================================================
 
                 bgModel.traverse(
-                    (child) => {
+
+                    function (child) {
 
                         if (!child.isMesh) {
+
                             return;
+
                         }
+
 
                         const oldMaterial =
                             child.material;
+
 
                         const materials =
                             Array.isArray(
@@ -341,30 +450,37 @@
                                 ? oldMaterial
                                 : [oldMaterial];
 
+
                         const newMaterials =
                             materials.map(
-                                (material) => {
+
+                                function (material) {
 
                                     return new THREE.MeshBasicMaterial({
 
                                         wireframe: true,
 
                                         transparent:
-                                            material.transparent,
+                                            material
+                                                ? material.transparent
+                                                : false,
 
                                         opacity:
-                                            material.opacity,
+                                            material
+                                                ? material.opacity
+                                                : 1,
 
                                         map:
-                                            material.map || null,
-
-                                        vertexColors:
-                                            material.vertexColors
+                                            material
+                                                ? material.map
+                                                : null
 
                                     });
 
                                 }
+
                             );
+
 
                         child.material =
                             Array.isArray(
@@ -373,14 +489,29 @@
                                 ? newMaterials
                                 : newMaterials[0];
 
+
+                        child.frustumCulled =
+                            false;
+
                     }
+
                 );
 
-                scene.add(bgModel);
+
+                scene.add(
+                    bgModel
+                );
+
+
+                console.log(
+                    'bg.glb 読み込み成功'
+                );
 
             },
 
+
             undefined,
+
 
             function (error) {
 
@@ -393,8 +524,9 @@
 
         );
 
+
         // ============================================================
-        // ターゲットモデル
+        // ct1.glb
         // ============================================================
 
         loader.load(
@@ -403,23 +535,41 @@
 
             function (gltf) {
 
+                console.log(
+                    'ct1.glb 読み込み成功'
+                );
+
+
                 targetModel =
                     gltf.scene;
+
 
                 targetModel.rotation.y =
                     Math.PI;
 
+
                 // ====================================================
-                // ct1.glb
-                // 元の色を維持し、ごく僅かな光沢だけを追加
+                // ct1の表示設定
                 // ====================================================
 
                 targetModel.traverse(
-                    (child) => {
+
+                    function (child) {
 
                         if (!child.isMesh) {
+
                             return;
+
                         }
+
+
+                        child.visible =
+                            true;
+
+
+                        child.frustumCulled =
+                            false;
+
 
                         const materials =
                             Array.isArray(
@@ -428,76 +578,101 @@
                                 ? child.material
                                 : [child.material];
 
+
                         materials.forEach(
-                            (material) => {
+
+                            function (material) {
 
                                 if (!material) {
+
                                     return;
+
                                 }
 
-                                // ------------------------------------
-                                // 金属感はほぼなくす
-                                // ------------------------------------
 
                                 material.metalness =
                                     0.05;
 
-                                // ------------------------------------
-                                // 元の質感を維持しつつ
-                                // ごく僅かな光沢を残す
-                                // ------------------------------------
 
                                 material.roughness =
                                     0.85;
 
-                                // ------------------------------------
-                                // 環境反射を弱くする
-                                // ------------------------------------
 
                                 material.envMapIntensity =
                                     0.15;
 
-                                // ------------------------------------
-                                // 元の色は変更しない
-                                // ------------------------------------
-
-                                // material.color.multiplyScalar()
-                                // は使用しない
-
-                                // ------------------------------------
-                                // テクスチャ
-                                // ------------------------------------
 
                                 if (
                                     material.map
                                 ) {
 
-                                    material.map.encoding =
-                                        THREE.sRGBEncoding;
+                                    material.map.colorSpace =
+                                        THREE.SRGBColorSpace;
+
 
                                     material.map.needsUpdate =
                                         true;
 
                                 }
 
+
                                 material.needsUpdate =
                                     true;
 
                             }
+
                         );
 
                     }
+
                 );
 
-                scene.add(targetModel);
+
+                scene.add(
+                    targetModel
+                );
+
+
+                // ====================================================
+                // BoundingBox確認
+                // ====================================================
+
+                const box =
+                    new THREE.Box3()
+                        .setFromObject(
+                            targetModel
+                        );
+
+
+                const center =
+                    box.getCenter(
+                        new THREE.Vector3()
+                    );
+
+
+                console.log(
+                    'ct1 BoundingBox:',
+                    box.min,
+                    box.max
+                );
+
+
+                console.log(
+                    'ct1 center:',
+                    center
+                );
+
 
                 // ====================================================
                 // アニメーション
                 // ====================================================
 
                 if (
+
                     gltf.animations &&
+
                     gltf.animations.length > 0
+
                 ) {
 
                     mixer =
@@ -505,35 +680,35 @@
                             targetModel
                         );
 
+
                     gltf.animations.forEach(
-                        (clip) => {
+
+                        function (clip) {
 
                             const action =
                                 mixer.clipAction(
                                     clip
                                 );
 
-                            // ------------------------------------
-                            // アニメーションを無限ループ
-                            // ------------------------------------
 
                             action.setLoop(
+
                                 THREE.LoopRepeat,
+
                                 Infinity
+
                             );
+
 
                             action.clampWhenFinished =
                                 false;
 
-                            // ------------------------------------
-                            // 名前で idle / dash を取得
-                            // 大文字・小文字は区別しない
-                            // ------------------------------------
 
                             const animationName =
                                 clip.name
                                     .trim()
                                     .toLowerCase();
+
 
                             if (
                                 animationName ===
@@ -544,6 +719,7 @@
                                     action;
 
                             }
+
 
                             if (
                                 animationName ===
@@ -556,21 +732,52 @@
                             }
 
                         }
+
                     );
 
-                    // ------------------------------------
-                    // 初期状態は idle
-                    // ------------------------------------
 
-                    setAction('idle');
+                    console.log(
+                        'Animation:',
+                        gltf.animations.map(
+                            function (clip) {
+                                return clip.name;
+                            }
+                        )
+                    );
+
+
+                    setAction(
+                        'idle'
+                    );
 
                 }
+
 
                 updateCameraPosition();
 
             },
 
-            undefined,
+
+            function (xhr) {
+
+                if (xhr.total) {
+
+                    console.log(
+
+                        'ct1.glb loading:',
+                        (
+                            xhr.loaded /
+                            xhr.total *
+                            100
+                        ).toFixed(1) +
+                        '%'
+
+                    );
+
+                }
+
+            },
+
 
             function (error) {
 
@@ -582,6 +789,7 @@
             }
 
         );
+
 
         // ============================================================
         // アニメーション切り替え
@@ -598,15 +806,19 @@
 
             }
 
+
             const nextAction =
                 actions[name];
+
 
             if (
                 currentAction !==
                 nextAction
             ) {
 
-                if (currentAction) {
+                if (
+                    currentAction
+                ) {
 
                     currentAction.fadeOut(
                         0.2
@@ -614,14 +826,21 @@
 
                 }
 
+
                 nextAction
                     .reset()
                     .setLoop(
+
                         THREE.LoopRepeat,
+
                         Infinity
+
                     )
-                    .fadeIn(0.2)
+                    .fadeIn(
+                        0.2
+                    )
                     .play();
+
 
                 currentAction =
                     nextAction;
@@ -630,6 +849,7 @@
 
         }
 
+
         // ============================================================
         // カメラ位置更新
         // ============================================================
@@ -637,19 +857,29 @@
         function updateCameraPosition() {
 
             if (!targetModel) {
+
                 return;
+
             }
+
 
             const targetPosition =
                 targetModel.position
                     .clone()
                     .add(
+
                         new THREE.Vector3(
+
                             0,
+
                             targetHeightOffset,
+
                             0
+
                         )
+
                     );
+
 
             const offset =
                 new THREE.Vector3()
@@ -657,15 +887,18 @@
                         cameraSpherical
                     );
 
+
             camera.position
                 .copy(targetPosition)
                 .add(offset);
+
 
             camera.lookAt(
                 targetPosition
             );
 
         }
+
 
         // ============================================================
         // アナログスティック
@@ -676,48 +909,62 @@
                 'joystick-container'
             );
 
+
         const joystickStick =
             document.getElementById(
                 'joystick-stick'
             );
 
-        let joystickPointerId = null;
+
+        let joystickPointerId =
+            null;
+
 
         let joystickX = 0;
 
         let joystickY = 0;
 
-        const joystickRadius = 52;
 
-        const joystickDeadZone = 0.08;
+        const joystickRadius =
+            52;
 
-        // ------------------------------------------------------------
-        // スティック位置更新
-        // ------------------------------------------------------------
+
+        const joystickDeadZone =
+            0.08;
+
 
         function updateJoystick(
+
             clientX,
+
             clientY
+
         ) {
 
             const rect =
-                joystickContainer.getBoundingClientRect();
+                joystickContainer
+                    .getBoundingClientRect();
+
 
             const centerX =
                 rect.left +
                 rect.width / 2;
 
+
             const centerY =
                 rect.top +
                 rect.height / 2;
+
 
             let dx =
                 clientX -
                 centerX;
 
+
             let dy =
                 clientY -
                 centerY;
+
 
             const distance =
                 Math.hypot(
@@ -725,37 +972,49 @@
                     dy
                 );
 
+
             if (
                 distance >
                 joystickRadius
             ) {
 
                 dx =
-                    dx / distance *
+                    dx /
+                    distance *
                     joystickRadius;
 
+
                 dy =
-                    dy / distance *
+                    dy /
+                    distance *
                     joystickRadius;
 
             }
 
+
             joystickStick.style.transform =
                 `translate(${dx}px, ${dy}px)`;
+
 
             joystickX =
                 dx /
                 joystickRadius;
 
+
             joystickY =
                 dy /
                 joystickRadius;
 
+
             const normalizedDistance =
                 Math.hypot(
+
                     joystickX,
+
                     joystickY
+
                 );
+
 
             if (
                 normalizedDistance <
@@ -770,62 +1029,64 @@
 
         }
 
-        // ------------------------------------------------------------
-        // スティックリセット
-        // ------------------------------------------------------------
 
         function resetJoystick() {
 
             joystickPointerId =
                 null;
 
+
             joystickX = 0;
 
             joystickY = 0;
+
 
             joystickStick.style.transform =
                 'translate(0px, 0px)';
 
         }
 
-        // ------------------------------------------------------------
-        // スティック開始
-        // ------------------------------------------------------------
 
         function handleJoystickStart(e) {
 
             e.preventDefault();
             e.stopPropagation();
 
+
             if (
-                joystickPointerId !== null
+                joystickPointerId !==
+                null
             ) {
 
                 return;
 
             }
 
+
             joystickPointerId =
                 e.pointerId;
 
+
             try {
 
-                joystickContainer.setPointerCapture(
-                    e.pointerId
-                );
+                joystickContainer
+                    .setPointerCapture(
+                        e.pointerId
+                    );
 
             } catch (err) {}
 
+
             updateJoystick(
+
                 e.clientX,
+
                 e.clientY
+
             );
 
         }
 
-        // ------------------------------------------------------------
-        // スティック移動
-        // ------------------------------------------------------------
 
         function handleJoystickMove(e) {
 
@@ -838,19 +1099,21 @@
 
             }
 
+
             e.preventDefault();
             e.stopPropagation();
 
+
             updateJoystick(
+
                 e.clientX,
+
                 e.clientY
+
             );
 
         }
 
-        // ------------------------------------------------------------
-        // スティック終了
-        // ------------------------------------------------------------
 
         function handleJoystickEnd(e) {
 
@@ -863,16 +1126,20 @@
 
             }
 
+
             e.preventDefault();
             e.stopPropagation();
+
 
             try {
 
                 if (
+
                     joystickContainer
                         .hasPointerCapture(
                             e.pointerId
                         )
+
                 ) {
 
                     joystickContainer
@@ -884,58 +1151,86 @@
 
             } catch (err) {}
 
+
             resetJoystick();
 
         }
 
+
         joystickContainer.addEventListener(
+
             'pointerdown',
+
             handleJoystickStart,
+
             {
                 passive: false
             }
+
         );
 
+
         joystickContainer.addEventListener(
+
             'pointermove',
+
             handleJoystickMove,
+
             {
                 passive: false
             }
+
         );
 
+
         joystickContainer.addEventListener(
+
             'pointerup',
+
             handleJoystickEnd,
+
             {
                 passive: false
             }
+
         );
 
+
         joystickContainer.addEventListener(
+
             'pointercancel',
+
             handleJoystickEnd,
+
             {
                 passive: false
             }
+
         );
+
 
         // ============================================================
-        // キーボード操作
+        // キーボード
         // ============================================================
 
         const keyState = {
 
             up: false,
+
             down: false,
+
             left: false,
+
             right: false
 
         };
 
+
         window.addEventListener(
+
             'keydown',
-            (e) => {
+
+            function (e) {
 
                 if (
                     e.key === 'ArrowUp' ||
@@ -946,6 +1241,7 @@
 
                 }
 
+
                 if (
                     e.key === 'ArrowDown' ||
                     e.key === 's'
@@ -955,6 +1251,7 @@
 
                 }
 
+
                 if (
                     e.key === 'ArrowLeft' ||
                     e.key === 'a'
@@ -963,6 +1260,7 @@
                     keyState.left = true;
 
                 }
+
 
                 if (
                     e.key === 'ArrowRight' ||
@@ -974,11 +1272,15 @@
                 }
 
             }
+
         );
 
+
         window.addEventListener(
+
             'keyup',
-            (e) => {
+
+            function (e) {
 
                 if (
                     e.key === 'ArrowUp' ||
@@ -989,6 +1291,7 @@
 
                 }
 
+
                 if (
                     e.key === 'ArrowDown' ||
                     e.key === 's'
@@ -998,6 +1301,7 @@
 
                 }
 
+
                 if (
                     e.key === 'ArrowLeft' ||
                     e.key === 'a'
@@ -1006,6 +1310,7 @@
                     keyState.left = false;
 
                 }
+
 
                 if (
                     e.key === 'ArrowRight' ||
@@ -1017,23 +1322,26 @@
                 }
 
             }
+
         );
+
 
         // ============================================================
         // カメラ操作
         // ============================================================
 
-        let isCameraDragging = false;
+        let isCameraDragging =
+            false;
 
-        let cameraPointerId = null;
+
+        let cameraPointerId =
+            null;
+
 
         let previousTouchX = 0;
 
         let previousTouchY = 0;
 
-        // ------------------------------------------------------------
-        // カメラ開始
-        // ------------------------------------------------------------
 
         function handleRightScreenStart(e) {
 
@@ -1047,11 +1355,13 @@
 
             }
 
+
             if (isCameraDragging) {
 
                 return;
 
             }
+
 
             if (
                 e.clientX >=
@@ -1060,17 +1370,22 @@
 
                 e.preventDefault();
 
+
                 isCameraDragging =
                     true;
+
 
                 cameraPointerId =
                     e.pointerId;
 
+
                 previousTouchX =
                     e.clientX;
 
+
                 previousTouchY =
                     e.clientY;
+
 
                 try {
 
@@ -1085,9 +1400,6 @@
 
         }
 
-        // ------------------------------------------------------------
-        // カメラ移動
-        // ------------------------------------------------------------
 
         function handleRightScreenMove(e) {
 
@@ -1097,6 +1409,7 @@
 
             }
 
+
             if (
                 e.pointerId !==
                 cameraPointerId
@@ -1106,44 +1419,55 @@
 
             }
 
+
             e.preventDefault();
+
 
             const deltaX =
                 e.clientX -
                 previousTouchX;
 
+
             const deltaY =
                 e.clientY -
                 previousTouchY;
+
 
             cameraSpherical.theta -=
                 deltaX *
                 cameraTouchSensitivity;
 
+
             cameraSpherical.phi -=
                 deltaY *
                 cameraTouchSensitivity;
 
+
             cameraSpherical.phi =
                 Math.max(
+
                     minPolarAngle,
+
                     Math.min(
+
                         maxPolarAngle,
+
                         cameraSpherical.phi
+
                     )
+
                 );
+
 
             previousTouchX =
                 e.clientX;
+
 
             previousTouchY =
                 e.clientY;
 
         }
 
-        // ------------------------------------------------------------
-        // カメラ終了
-        // ------------------------------------------------------------
 
         function handleRightScreenEnd(e) {
 
@@ -1153,6 +1477,7 @@
 
             }
 
+
             if (
                 e.pointerId !==
                 cameraPointerId
@@ -1162,18 +1487,23 @@
 
             }
 
+
             e.preventDefault();
+
 
             isCameraDragging =
                 false;
 
+
             try {
 
                 if (
+
                     renderer.domElement
                         .hasPointerCapture(
                             e.pointerId
                         )
+
                 ) {
 
                     renderer.domElement
@@ -1185,42 +1515,64 @@
 
             } catch (err) {}
 
+
             cameraPointerId =
                 null;
 
         }
 
+
         window.addEventListener(
+
             'pointerdown',
+
             handleRightScreenStart,
+
             {
                 passive: false
             }
+
         );
 
+
         window.addEventListener(
+
             'pointermove',
+
             handleRightScreenMove,
+
             {
                 passive: false
             }
+
         );
 
+
         window.addEventListener(
+
             'pointerup',
+
             handleRightScreenEnd,
+
             {
                 passive: false
             }
+
         );
 
+
         window.addEventListener(
+
             'pointercancel',
+
             handleRightScreenEnd,
+
             {
                 passive: false
             }
+
         );
+
 
         // ============================================================
         // キャラクター移動
@@ -1234,17 +1586,22 @@
 
             }
 
+
             let moveX =
                 joystickX;
+
 
             let moveY =
                 joystickY;
 
+
             let currentSpeed = 0;
+
 
             let keyboardX = 0;
 
             let keyboardY = 0;
+
 
             if (keyState.right) {
 
@@ -1252,11 +1609,13 @@
 
             }
 
+
             if (keyState.left) {
 
                 keyboardX -= 1;
 
             }
+
 
             if (keyState.up) {
 
@@ -1264,46 +1623,56 @@
 
             }
 
+
             if (keyState.down) {
 
                 keyboardY += 1;
 
             }
 
+
             if (
+
                 keyboardX !== 0 ||
+
                 keyboardY !== 0
+
             ) {
 
                 const length =
                     Math.hypot(
+
                         keyboardX,
+
                         keyboardY
+
                     );
+
 
                 moveX =
                     keyboardX /
                     length;
 
+
                 moveY =
                     keyboardY /
                     length;
+
 
                 currentSpeed =
                     maxMoveSpeed;
 
             }
 
+
             else {
 
-                // ------------------------------------
-                // スティックの傾きに関係なく
-                // 入力があれば常に最大速度
-                // ------------------------------------
-
                 if (
+
                     moveX !== 0 ||
+
                     moveY !== 0
+
                 ) {
 
                     currentSpeed =
@@ -1319,58 +1688,76 @@
 
             }
 
+
             const isMoving =
                 currentSpeed > 0;
 
-            if (isMoving) {
 
-                // ------------------------------------
-                // 移動中は dash
-                // ------------------------------------
+            if (isMoving) {
 
                 if (
                     actions.dash
                 ) {
 
-                    setAction('dash');
+                    setAction(
+                        'dash'
+                    );
 
                 }
 
+
                 const cameraForward =
                     new THREE.Vector3();
+
 
                 camera.getWorldDirection(
                     cameraForward
                 );
 
+
                 cameraForward.y = 0;
 
+
                 cameraForward.normalize();
+
 
                 const cameraRight =
                     new THREE.Vector3();
 
+
                 cameraRight.crossVectors(
+
                     cameraForward,
+
                     new THREE.Vector3(
                         0,
                         1,
                         0
                     )
+
                 ).normalize();
+
 
                 const moveDirection =
                     new THREE.Vector3();
 
+
                 moveDirection
                     .addScaledVector(
+
                         cameraRight,
+
                         moveX
+
                     )
                     .addScaledVector(
+
                         cameraForward,
+
                         -moveY
+
                     );
+
 
                 if (
                     moveDirection.lengthSq() > 0
@@ -1380,54 +1767,79 @@
 
                 }
 
+
                 targetModel.position
                     .addScaledVector(
+
                         moveDirection,
-                        currentSpeed * delta
+
+                        currentSpeed *
+                        delta
+
                     );
+
 
                 const targetAngle =
                     Math.atan2(
+
                         moveDirection.x,
+
                         moveDirection.z
+
                     );
+
 
                 const targetQuaternion =
                     new THREE.Quaternion();
 
+
                 targetQuaternion.setFromAxisAngle(
+
                     new THREE.Vector3(
                         0,
                         1,
                         0
                     ),
+
                     targetAngle
+
                 );
 
+
                 targetModel.quaternion.slerp(
+
                     targetQuaternion,
-                    rotationSpeed * delta
+
+                    Math.min(
+
+                        rotationSpeed *
+                        delta,
+
+                        1
+
+                    )
+
                 );
 
             }
 
-            else {
 
-                // ------------------------------------
-                // 停止中は idle
-                // ------------------------------------
+            else {
 
                 if (
                     actions.idle
                 ) {
 
-                    setAction('idle');
+                    setAction(
+                        'idle'
+                    );
 
                 }
 
             }
 
         }
+
 
         // ============================================================
         // メインループ
@@ -1439,12 +1851,15 @@
                 animate
             );
 
+
             const delta =
                 clock.getDelta();
+
 
             updateModelMovement(
                 delta
             );
+
 
             if (mixer) {
 
@@ -1454,7 +1869,9 @@
 
             }
 
+
             updateCameraPosition();
+
 
             renderer.render(
                 scene,
@@ -1463,28 +1880,38 @@
 
         }
 
+
         animate();
+
 
         // ============================================================
         // リサイズ
         // ============================================================
 
         window.addEventListener(
+
             'resize',
-            () => {
+
+            function () {
 
                 camera.aspect =
                     window.innerWidth /
                     window.innerHeight;
 
+
                 camera.updateProjectionMatrix();
 
+
                 renderer.setSize(
+
                     window.innerWidth,
+
                     window.innerHeight
+
                 );
 
             }
+
         );
 
     </script>
