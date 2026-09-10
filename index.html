@@ -275,18 +275,32 @@
         const mgMoveDirection = new THREE.Vector3();
         const mgTargetPosition = new THREE.Vector3();
 
+        // attack1再生中のフレーム数（当たり判定・エフェクトのタイミング制御に使う）
+        let mgAttackFrameCount = 0;
+
+
+        // ------------------------------------------------------------
+        // ct1側も、mgに近づきすぎないように制限する
+        // ------------------------------------------------------------
+        const ct1MinDistanceToMg = 1.8; // ct1がmgへ近づける最小距離
+
 
         // ------------------------------------------------------------
         // mg attack1 の当たり判定（mgの前方に置く円形の判定）と
         // ct1側の当たり判定（ct1を中心とした円形の判定）
         //
-        // attack1再生中、この2つの判定が重なった最初の瞬間にだけ
+        // attack1のアニメーション再生中、25フレーム目前後の短い間だけ
+        // 判定を有効にし、この2つの判定が重なった最初の瞬間にだけ
         // ct1をノックバックさせる（1回のattack1につき1回だけ）。
         // ct1がダッシュ中（透明化中）は無敵扱いとし、判定自体を行わない。
         // ------------------------------------------------------------
         const mgAttackHitboxForwardOffset = 1.2; // mgの前方どれだけの位置に判定を置くか
         const mgAttackHitboxRadius = 1.3;        // mg側の判定の半径
         const ct1HitboxRadius = 0.6;             // ct1側の判定の半径
+
+        // 当たり判定を有効にするフレーム範囲（25フレーム目前後）
+        const mgAttackHitFrameStart = 23;
+        const mgAttackHitFrameEnd = 27;
 
         let mgAttackHitApplied = false;
 
@@ -304,6 +318,45 @@
         const ct1KnockbackDuration = 0.25; // ノックバックが続く時間（秒）
         const ct1KnockbackStrength = 3.0;  // ノックバックの初速
         const ct1KnockbackDamping = 6.0;   // 速度の減衰係数（大きいほど早く止まる）
+
+
+        // ------------------------------------------------------------
+        // ノックバック発生時、当たり判定付近に一瞬出す黄色い光
+        // ------------------------------------------------------------
+        const knockbackFlashColor = 0xffe200;
+        const knockbackFlashDuration = 0.15;
+        const knockbackFlashRadius = 0.4;
+        const knockbackFlashMaxScale = 3.0;
+
+
+        // ------------------------------------------------------------
+        // attack1中、20フレーム目からmgの前に大袈裟に出す
+        // 白と黄色のブロックで構成された三日月エフェクト
+        // ------------------------------------------------------------
+        const mgCrescentFrame = 20; // このフレームに到達したら発生させる
+        let mgCrescentSpawned = false;
+
+        const mgCrescentArcSteps = 36;              // 三日月を構成するブロックの数
+        const mgCrescentArcAngleRange = Math.PI * 0.55; // 弧の全体角度（約99度）
+        const mgCrescentRadius = 1.8;                // mgからの基本半径
+        const mgCrescentRadiusVariance = 0.3;         // 半径のランダムなばらつき
+        const mgCrescentHeight = 1.1;                 // 発生高さ
+
+        const mgCrescentCubeMinSize = 0.16;
+        const mgCrescentCubeMaxSize = 0.46;
+
+        const mgCrescentOutwardSpeed = 2.2;
+        const mgCrescentGravity = 1.0;
+        const mgCrescentMinDuration = 0.3;
+        const mgCrescentMaxDuration = 0.55;
+
+        const mgCrescentColorWhite = new THREE.Color(0xffffff);
+        const mgCrescentColorYellow = new THREE.Color(0xffe200);
+
+        const mgCrescentFlashDuration = 0.15;
+        const mgCrescentFlashRadius = 0.6;
+        const mgCrescentFlashMaxScale = 4.0;
+        const mgCrescentFlashColor = 0xfff2a0;
 
 
         // ============================================================
@@ -641,8 +694,10 @@
             mgIsAttacking = true;
             mgIsMoving = false;
 
-            // 今回のattack1ではまだヒット処理をしていない状態にリセット
+            // 今回のattack1ではまだヒット処理・演出をしていない状態にリセット
             mgAttackHitApplied = false;
+            mgCrescentSpawned = false;
+            mgAttackFrameCount = 0;
 
             if (currentMgAction) {
                 currentMgAction.fadeOut(0.1);
@@ -738,11 +793,48 @@
 
 
         // ============================================================
+        // ct1がmgに近づきすぎないよう制限する
+        //
+        // ct1の移動・ノックバック・ダッシュなど、あらゆる要因で
+        // 位置が更新された後、mgとの水平距離がct1MinDistanceToMgを
+        // 下回っていたら、その分だけmgから遠ざかる方向へ押し戻す。
+        // ============================================================
+        function clampCt1DistanceFromMg() {
+
+            if (!targetModel || !mgModel) return;
+
+            const dx = targetModel.position.x - mgModel.position.x;
+            const dz = targetModel.position.z - mgModel.position.z;
+            const distance = Math.hypot(dx, dz);
+
+            if (distance >= ct1MinDistanceToMg) return;
+
+            if (distance > 0.0001) {
+
+                const pushScale = ct1MinDistanceToMg / distance;
+
+                targetModel.position.x = mgModel.position.x + dx * pushScale;
+                targetModel.position.z = mgModel.position.z + dz * pushScale;
+
+            } else {
+
+                // 完全に重なってしまった場合は、適当な方向へ押し出す
+                targetModel.position.x = mgModel.position.x + ct1MinDistanceToMg;
+                targetModel.position.z = mgModel.position.z;
+
+            }
+
+        }
+
+
+        // ============================================================
         // mg attack1 の当たり判定 → ct1ノックバック
         //
-        // attack1再生中、mgの前方に置いた円形の判定と、ct1を中心とした
-        // 円形の判定が重なっているかを毎フレームチェックする。
-        // 重なっていれば、そのattack1につき1回だけct1をノックバックさせる。
+        // attack1再生中、25フレーム目前後の短い間だけ、mgの前方に
+        // 置いた円形の判定と、ct1を中心とした円形の判定が重なって
+        // いるかをチェックする。重なっていれば、そのattack1につき
+        // 1回だけct1をノックバックさせ、当たり判定付近に黄色い光を
+        // 一瞬出す。
         // ct1がダッシュ中（本体が非表示＝透明化中）は無敵として判定しない。
         // ============================================================
         function updateMgAttackHit(delta) {
@@ -750,6 +842,9 @@
             if (!mgModel || !targetModel) return;
             if (!mgIsAttacking) return;
             if (mgAttackHitApplied) return;
+
+            // 25フレーム目前後の短い区間のみ判定を有効にする
+            if (mgAttackFrameCount < mgAttackHitFrameStart || mgAttackFrameCount > mgAttackHitFrameEnd) return;
 
             // ダッシュ中（透明化中）のct1には当たり判定を発生させない
             if (isDashing || !targetModel.visible) return;
@@ -775,6 +870,18 @@
 
                 // 判定点からct1へ向かう方向へノックバックさせる
                 applyCt1Knockback(dx, dz);
+
+                // 当たり判定付近に黄色い光を一瞬出す
+                const flashPosition = mgAttackHitPosition.clone();
+                flashPosition.y += 1.0;
+
+                spawnFlashParticle(flashPosition, {
+                    radius: knockbackFlashRadius,
+                    duration: knockbackFlashDuration,
+                    maxScale: knockbackFlashMaxScale,
+                    startOpacity: 1.0,
+                    color: knockbackFlashColor
+                });
 
             }
 
@@ -981,6 +1088,122 @@
                     effect.mesh.material.dispose();
                     particles.splice(i, 1);
                 }
+
+            }
+
+        }
+
+
+        // ============================================================
+        // mg attack1 の三日月エフェクト
+        //
+        // attack1再生中、20フレーム目に到達した瞬間に1回だけ発生させる。
+        // mgの前方を中心に、白〜黄色の細長いブロックを弧状（三日月状）に
+        // 大袈裟に並べ、外側へ弾け飛ばしながらフェードアウトさせる。
+        // ============================================================
+        function spawnMgCrescentEffect() {
+
+            if (!mgModel) return;
+
+            const forward = new THREE.Vector3(0, 0, 1);
+            forward.applyQuaternion(mgModel.quaternion);
+            forward.y = 0;
+
+            if (forward.lengthSq() > 0) {
+                forward.normalize();
+            }
+
+            const baseAngle = Math.atan2(forward.x, forward.z);
+
+            const origin = mgModel.position.clone();
+            origin.y += mgCrescentHeight;
+
+            // 中心に閃光を一瞬出して、より大袈裟に見せる
+            const flashOrigin = origin.clone().addScaledVector(forward, mgCrescentRadius);
+
+            spawnFlashParticle(flashOrigin, {
+                radius: mgCrescentFlashRadius,
+                duration: mgCrescentFlashDuration,
+                maxScale: mgCrescentFlashMaxScale,
+                startOpacity: 1.0,
+                color: mgCrescentFlashColor
+            });
+
+            for (let i = 0; i < mgCrescentArcSteps; i++) {
+
+                const t = mgCrescentArcSteps <= 1 ? 0.5 : i / (mgCrescentArcSteps - 1);
+                const angleOffset = (t - 0.5) * mgCrescentArcAngleRange;
+                const angle = baseAngle + angleOffset;
+
+                // 三日月らしく、中央ほど太く外側へ張り出すよう半径を調整する
+                const edgeFactor = 1 - Math.abs(t - 0.5) * 2; // 0(両端)〜1(中央)
+                const radius = mgCrescentRadius +
+                    randomRange(-mgCrescentRadiusVariance, mgCrescentRadiusVariance * 0.5) +
+                    edgeFactor * 0.4;
+
+                const position = origin.clone();
+                position.x += Math.sin(angle) * radius;
+                position.z += Math.cos(angle) * radius;
+                position.y += randomRange(-0.15, 0.3);
+
+                const size = randomRange(mgCrescentCubeMinSize, mgCrescentCubeMaxSize) * (0.5 + edgeFactor * 0.8);
+
+                const geometry = new THREE.BoxGeometry(
+                    size,
+                    size * randomRange(0.5, 0.9),
+                    size * randomRange(0.2, 0.4)
+                );
+
+                const color = mgCrescentColorWhite.clone().lerp(mgCrescentColorYellow, Math.random());
+
+                const material = new THREE.MeshBasicMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: 1.0,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending
+                });
+
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.copy(position);
+
+                // 弧の接線方向を向かせ、刃らしいシルエットにする
+                mesh.rotation.y = angle;
+                mesh.rotation.z = randomRange(-0.3, 0.3);
+                mesh.rotation.x = randomRange(-0.2, 0.2);
+
+                scene.add(mesh);
+
+                const outwardDirection = new THREE.Vector3(
+                    Math.sin(angle),
+                    randomRange(-0.1, 0.35),
+                    Math.cos(angle)
+                );
+
+                if (outwardDirection.lengthSq() > 0) {
+                    outwardDirection.normalize();
+                }
+
+                const velocity = outwardDirection.multiplyScalar(
+                    mgCrescentOutwardSpeed * randomRange(0.6, 1.3)
+                );
+
+                particles.push({
+                    kind: 'cube',
+                    mesh: mesh,
+                    elapsed: 0,
+                    duration: randomRange(mgCrescentMinDuration, mgCrescentMaxDuration),
+                    velocity: velocity,
+                    angularVelocity: new THREE.Vector3(
+                        randomRange(-4, 4),
+                        randomRange(-4, 4),
+                        randomRange(-4, 4)
+                    ),
+                    gravity: mgCrescentGravity,
+                    startOpacity: 1.0,
+                    startScale: 1.0
+                });
 
             }
 
@@ -1681,14 +1904,14 @@
             // mg → ct1接近・attack1発動
             updateMgMovement(delta);
 
-            // mg attack1の当たり判定チェック
-            updateMgAttackHit(delta);
-
             // ct1ノックバック
             updateCt1Knockback(delta);
 
             // ct1ダッシュ
             updateDash(delta);
+
+            // ct1がmgに近づきすぎないよう最終位置を補正
+            clampCt1DistanceFromMg();
 
             // パーティクル
             updateParticles(delta);
@@ -1722,8 +1945,26 @@
 
             // mgアニメーション
             if (mgMixer) {
+
                 mgMixer.update(delta);
+
+                if (mgIsAttacking && mgActions.attack1) {
+
+                    mgAttackFrameCount = Math.floor(mgActions.attack1.time * animationFPS);
+
+                    // 20フレーム目に達したら三日月エフェクトを1回だけ発生
+                    if (!mgCrescentSpawned && mgAttackFrameCount >= mgCrescentFrame) {
+                        spawnMgCrescentEffect();
+                        mgCrescentSpawned = true;
+                    }
+
+                }
+
             }
+
+            // mg attack1の当たり判定チェック
+            // （mgMixerの更新後、フレーム数が確定してから行う）
+            updateMgAttackHit(delta);
 
             // ct1ジャンプの高さオフセット
             if (rootBone) {
