@@ -355,7 +355,8 @@
 
         // ジャンプ中かどうか
         // true の間（＝jump中断/完走のどちらかが確定するまで）は
-        // 移動処理を一切行わない
+        // dash/idleへのアニメーション切り替えを行わず、移動も
+        // jumpMoveSpeedFactorをかけた低速でのみ許可する
         let isJumping = false;
 
         // jump開始からのフレーム数
@@ -384,6 +385,10 @@
         // ============================================================
 
         const maxMoveSpeed = 4.0;
+
+        // jump中は移動を完全に禁止せず、この倍率をかけた
+        // 低速でのみ移動できるようにする
+        const jumpMoveSpeedFactor = 0.3;
 
         const rotationSpeed = 10.0;
 
@@ -830,51 +835,75 @@
 
 
         // ============================================================
-        // 衝撃波エフェクト
+        // 衝撃波エフェクト（不規則な火花の3D的な飛び散り）
         //
         // jumpの22フレーム目で1回だけ発生させる。
         // 発生後はjumpが中断されようが完走しようが関係なく、
-        // 自身の経過時間だけで拡大～フェードアウトして消える
+        // 各パーティクルが自身の経過時間・速度だけで
+        // 飛び散り～フェードアウトして消える
         // （キャラクターのアニメーション状態には依存しない）
         // ============================================================
 
         const shockwaves = [];
 
         // ------------------------------------
-        // 拡散していくリング
+        // 中心の閃光（発生の瞬間だけ強く光るコア）
         // ------------------------------------
 
-        const shockwaveDuration = 0.6;
+        const shockwaveFlashDuration = 0.12;
 
-        const shockwaveStartRadius = 0.2;
+        const shockwaveFlashRadius = 0.35;
 
-        const shockwaveRingThickness = 0.3;
-
-        const shockwaveMaxScale = 14;
-
-        const shockwaveMaxOpacity = 1.0;
-
-        const shockwaveColor = 0xfff0c2;
-
-        // ------------------------------------
-        // 発生の瞬間だけ強く光るフラッシュ
-        // ------------------------------------
-
-        const shockwaveFlashDuration = 0.15;
-
-        const shockwaveFlashRadius = 0.9;
-
-        const shockwaveFlashMaxScale = 3.2;
+        const shockwaveFlashMaxScale = 2.4;
 
         const shockwaveFlashMaxOpacity = 1.0;
 
         const shockwaveFlashColor = 0xffffff;
 
         // ------------------------------------
-        // 共通：発生位置（キャラクターの少し前方）
+        // 不規則に飛び散る火花の破片
+        // ------------------------------------
+
+        const shockwaveSparkCount = 22;
+
+        const shockwaveSparkMinSpeed = 1.5;
+
+        const shockwaveSparkMaxSpeed = 4.5;
+
+        const shockwaveSparkMinSize = 0.05;
+
+        const shockwaveSparkMaxSize = 0.14;
+
+        const shockwaveSparkMinDuration = 0.35;
+
+        const shockwaveSparkMaxDuration = 0.7;
+
+        const shockwaveSparkGravity = 3.0;
+
+        const shockwaveSparkColorBlue =
+            new THREE.Color(0x2a7dff);
+
+        const shockwaveSparkColorWhite =
+            new THREE.Color(0xffffff);
+
+        // ------------------------------------
+        // 共通：発生位置（キャラクターの少し前方・胸の高さあたり）
         // ------------------------------------
 
         const shockwaveForwardOffset = 0.6;
+
+        const shockwaveHeightOffset = 0.9;
+
+
+        function randomRange(min, max) {
+
+            return (
+                min +
+                Math.random() *
+                    (max - min)
+            );
+
+        }
 
 
         function spawnShockwave() {
@@ -885,7 +914,7 @@
 
             }
 
-            // キャラクターの少し前方・地面付近の発生位置を算出
+            // キャラクターの少し前方・胸の高さあたりを発生位置にする
             const forward =
                 new THREE.Vector3(
                     0,
@@ -909,85 +938,19 @@
                         shockwaveForwardOffset
                     );
 
-            // 地面とのz-fightingを避けるため僅かに浮かせる
-            basePosition.y += 0.05;
+            basePosition.y +=
+                shockwaveHeightOffset;
 
 
             // ====================================================
-            // 拡散していくリング
-            // ====================================================
-
-            const ringGeometry =
-                new THREE.RingGeometry(
-                    shockwaveStartRadius,
-                    shockwaveStartRadius +
-                        shockwaveRingThickness,
-                    48
-                );
-
-            const ringMaterial =
-                new THREE.MeshBasicMaterial({
-
-                    color:
-                        shockwaveColor,
-
-                    transparent: true,
-
-                    opacity:
-                        shockwaveMaxOpacity,
-
-                    side: THREE.DoubleSide,
-
-                    depthWrite: false,
-
-                    // 加算合成でエネルギー感のある光り方にする
-                    blending:
-                        THREE.AdditiveBlending
-
-                });
-
-            const ringMesh =
-                new THREE.Mesh(
-                    ringGeometry,
-                    ringMaterial
-                );
-
-            ringMesh.rotation.x =
-                -Math.PI / 2;
-
-            ringMesh.position.copy(
-                basePosition
-            );
-
-            scene.add(ringMesh);
-
-            shockwaves.push({
-
-                mesh: ringMesh,
-
-                elapsed: 0,
-
-                duration:
-                    shockwaveDuration,
-
-                maxScale:
-                    shockwaveMaxScale,
-
-                startOpacity:
-                    shockwaveMaxOpacity
-
-            });
-
-
-            // ====================================================
-            // 発生の瞬間だけ強く光るフラッシュ
-            // （インパクトの瞬間を強調する）
+            // 中心の閃光（発生の瞬間だけ強く光るコア）
             // ====================================================
 
             const flashGeometry =
-                new THREE.CircleGeometry(
+                new THREE.SphereGeometry(
                     shockwaveFlashRadius,
-                    32
+                    12,
+                    12
                 );
 
             const flashMaterial =
@@ -1000,8 +963,6 @@
 
                     opacity:
                         shockwaveFlashMaxOpacity,
-
-                    side: THREE.DoubleSide,
 
                     depthWrite: false,
 
@@ -1016,20 +977,15 @@
                     flashMaterial
                 );
 
-            flashMesh.rotation.x =
-                -Math.PI / 2;
-
             flashMesh.position.copy(
                 basePosition
             );
 
-            // リングよりほんの少しだけ上にして重なりを綺麗に見せる
-            flashMesh.position.y +=
-                0.01;
-
             scene.add(flashMesh);
 
             shockwaves.push({
+
+                kind: 'flash',
 
                 mesh: flashMesh,
 
@@ -1045,6 +1001,161 @@
                     shockwaveFlashMaxOpacity
 
             });
+
+
+            // ====================================================
+            // 不規則に飛び散る火花の破片
+            //
+            // それぞれ違う形・大きさ・色（青～白のランダム混合）・
+            // 初速・寿命を持たせ、重力で落ちながらフェードアウトする
+            // ====================================================
+
+            for (
+                let i = 0;
+                i <
+                shockwaveSparkCount;
+                i++
+            ) {
+
+                // 不規則な形にするため、四面体を
+                // 軸ごとにランダムな比率で歪ませる
+                const size =
+                    randomRange(
+                        shockwaveSparkMinSize,
+                        shockwaveSparkMaxSize
+                    );
+
+                const sparkGeometry =
+                    new THREE.TetrahedronGeometry(
+                        size
+                    );
+
+                sparkGeometry.scale(
+                    randomRange(0.6, 1.6),
+                    randomRange(0.6, 1.6),
+                    randomRange(0.6, 1.6)
+                );
+
+                // 青と白をランダムな比率で混ぜた色
+                const sparkColor =
+                    shockwaveSparkColorBlue
+                        .clone()
+                        .lerp(
+                            shockwaveSparkColorWhite,
+                            Math.random()
+                        );
+
+                const sparkMaterial =
+                    new THREE.MeshBasicMaterial({
+
+                        color:
+                            sparkColor,
+
+                        transparent: true,
+
+                        opacity: 1.0,
+
+                        side: THREE.DoubleSide,
+
+                        depthWrite: false,
+
+                        blending:
+                            THREE.AdditiveBlending
+
+                    });
+
+                const sparkMesh =
+                    new THREE.Mesh(
+                        sparkGeometry,
+                        sparkMaterial
+                    );
+
+                sparkMesh.position.copy(
+                    basePosition
+                );
+
+                sparkMesh.rotation.set(
+                    Math.random() *
+                        Math.PI * 2,
+                    Math.random() *
+                        Math.PI * 2,
+                    Math.random() *
+                        Math.PI * 2
+                );
+
+                // 全方位（球面上のランダムな方向）へ不規則に飛び散らせる
+                const azimuth =
+                    Math.random() *
+                    Math.PI * 2;
+
+                const elevation =
+                    randomRange(
+                        -0.3,
+                        1.0
+                    );
+
+                const horizontalRadius =
+                    Math.cos(
+                        elevation
+                    );
+
+                const direction =
+                    new THREE.Vector3(
+                        Math.cos(azimuth) *
+                            horizontalRadius,
+                        Math.sin(
+                            elevation
+                        ),
+                        Math.sin(azimuth) *
+                            horizontalRadius
+                    );
+
+                const speed =
+                    randomRange(
+                        shockwaveSparkMinSpeed,
+                        shockwaveSparkMaxSpeed
+                    );
+
+                const velocity =
+                    direction.multiplyScalar(
+                        speed
+                    );
+
+                const angularVelocity =
+                    new THREE.Vector3(
+                        randomRange(-8, 8),
+                        randomRange(-8, 8),
+                        randomRange(-8, 8)
+                    );
+
+                scene.add(sparkMesh);
+
+                shockwaves.push({
+
+                    kind: 'spark',
+
+                    mesh: sparkMesh,
+
+                    elapsed: 0,
+
+                    duration:
+                        randomRange(
+                            shockwaveSparkMinDuration,
+                            shockwaveSparkMaxDuration
+                        ),
+
+                    velocity: velocity,
+
+                    angularVelocity:
+                        angularVelocity,
+
+                    startOpacity: 1.0,
+
+                    startScale: 1.0
+
+                });
+
+            }
 
         }
 
@@ -1071,23 +1182,78 @@
                         1
                     );
 
-                // 広がっていく
-                const scale =
-                    1 +
-                    t *
-                        (effect.maxScale -
-                            1);
 
-                effect.mesh.scale.set(
-                    scale,
-                    scale,
-                    scale
-                );
+                if (
+                    effect.kind ===
+                    'flash'
+                ) {
 
-                // フェードアウトしていく
-                effect.mesh.material.opacity =
-                    effect.startOpacity *
-                    (1 - t);
+                    // ------------------------------------
+                    // 中心の閃光：広がりながらフェードアウト
+                    // ------------------------------------
+
+                    const scale =
+                        1 +
+                        t *
+                            (effect.maxScale -
+                                1);
+
+                    effect.mesh.scale.set(
+                        scale,
+                        scale,
+                        scale
+                    );
+
+                    effect.mesh.material.opacity =
+                        effect.startOpacity *
+                        (1 - t);
+
+                }
+
+                else {
+
+                    // ------------------------------------
+                    // 火花の破片：重力で落ちながら
+                    // 不規則に回転・フェードアウトする
+                    // ------------------------------------
+
+                    effect.velocity.y -=
+                        shockwaveSparkGravity *
+                        delta;
+
+                    effect.mesh.position.addScaledVector(
+                        effect.velocity,
+                        delta
+                    );
+
+                    effect.mesh.rotation.x +=
+                        effect.angularVelocity.x *
+                        delta;
+
+                    effect.mesh.rotation.y +=
+                        effect.angularVelocity.y *
+                        delta;
+
+                    effect.mesh.rotation.z +=
+                        effect.angularVelocity.z *
+                        delta;
+
+                    const scale =
+                        effect.startScale *
+                        (1 - t * 0.5);
+
+                    effect.mesh.scale.set(
+                        scale,
+                        scale,
+                        scale
+                    );
+
+                    effect.mesh.material.opacity =
+                        effect.startOpacity *
+                        (1 - t);
+
+                }
+
 
                 if (t >= 1) {
 
@@ -1956,16 +2122,6 @@
 
             }
 
-            // ========================================================
-            // ジャンプ中（dashへ中断されるまで）は移動処理を行わない
-            // ========================================================
-
-            if (isJumping) {
-
-                return;
-
-            }
-
             let moveX =
                 joystickX;
 
@@ -2059,28 +2215,49 @@
 
 
             // ========================================================
-            // 移動アニメーション
+            // jump中は移動を完全に禁止せず、低速での移動のみ許可する
+            // （アニメーションはjumpのまま維持し、dash/idleへは
+            //   切り替えない）
             // ========================================================
 
-            if (isMoving) {
+            if (isJumping) {
 
-                if (
-                    actions.dash
-                ) {
-
-                    setAction('dash');
-
-                }
+                currentSpeed *=
+                    jumpMoveSpeedFactor;
 
             }
 
-            else {
 
-                if (
-                    actions.idle
-                ) {
+            // ========================================================
+            // 移動アニメーション
+            //
+            // jump中はここでdash/idleへ切り替えない
+            // （jumpアニメーションを維持したまま低速移動するだけ）
+            // ========================================================
 
-                    setAction('idle');
+            if (!isJumping) {
+
+                if (isMoving) {
+
+                    if (
+                        actions.dash
+                    ) {
+
+                        setAction('dash');
+
+                    }
+
+                }
+
+                else {
+
+                    if (
+                        actions.idle
+                    ) {
+
+                        setAction('idle');
+
+                    }
 
                 }
 
