@@ -1546,6 +1546,17 @@
 
             }
 
+            // ========================================================
+            // ジャンプ中は移動処理を行わない
+            // （位置・回転・アニメーション切り替えすべて停止）
+            // ========================================================
+
+            if (isJumping) {
+
+                return;
+
+            }
+
             let moveX =
                 joystickX;
 
@@ -1640,47 +1651,27 @@
 
             // ========================================================
             // 移動アニメーション
-            //
-            // jump開始から30フレーム未満
-            // → jumpを維持
-            //
-            // 30フレーム以降
-            // → 移動中ならdashへ変更
-            // → 停止中ならjumpを維持
             // ========================================================
 
-            if (
-                !isJumping ||
-                jumpFrameCount >=
-                jumpTransitionFrame
-            ) {
+            if (isMoving) {
 
-                if (isMoving) {
+                if (
+                    actions.dash
+                ) {
 
-                    if (
-                        actions.dash
-                    ) {
-
-                        setAction('dash');
-
-                    }
+                    setAction('dash');
 
                 }
 
-                else {
+            }
 
-                    // jump中ならidleへ変更しない
-                    if (!isJumping) {
+            else {
 
-                        if (
-                            actions.idle
-                        ) {
+                if (
+                    actions.idle
+                ) {
 
-                            setAction('idle');
-
-                        }
-
-                    }
+                    setAction('idle');
 
                 }
 
@@ -1831,26 +1822,12 @@
                         jumpTransitionFrame
                     ) {
 
-                        // 移動している場合のみ
-                        // dashへ切り替える
-                        const isMoving =
-                            (
-                                joystickX !== 0 ||
-                                joystickY !== 0 ||
-                                keyState.up ||
-                                keyState.down ||
-                                keyState.left ||
-                                keyState.right
-                            );
+                        // ジャンプ終了扱いにして
+                        // 通常の移動・アニメーション処理へ戻す
+                        isJumping =
+                            false;
 
-                        if (isMoving) {
-
-                            isJumping =
-                                false;
-
-                            updateMovementAnimation();
-
-                        }
+                        updateMovementAnimation();
 
                     }
 
