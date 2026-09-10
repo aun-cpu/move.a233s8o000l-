@@ -355,6 +355,12 @@
         // GLBのアニメーションFPS
         const animationFPS = 30;
 
+        // 衝撃波を発生させるフレーム
+        const shockwaveFrame = 22;
+
+        // 今回のjumpで衝撃波を発生させ済みかどうか
+        let jumpShockwaveSpawned = false;
+
         const clock =
             new THREE.Clock();
 
@@ -772,6 +778,175 @@
 
 
         // ============================================================
+        // 衝撃波エフェクト
+        //
+        // jumpの22フレーム目で1回だけ発生させる。
+        // 発生後はjumpが中断されようが完走しようが関係なく、
+        // 自身の経過時間だけで拡大～フェードアウトして消える
+        // （キャラクターのアニメーション状態には依存しない）
+        // ============================================================
+
+        const shockwaves = [];
+
+        const shockwaveDuration = 0.5;
+
+        const shockwaveStartRadius = 0.2;
+
+        const shockwaveRingThickness = 0.25;
+
+        const shockwaveMaxScale = 9;
+
+        const shockwaveForwardOffset = 0.6;
+
+        const shockwaveMaxOpacity = 0.9;
+
+
+        function spawnShockwave() {
+
+            if (!targetModel) {
+
+                return;
+
+            }
+
+            const geometry =
+                new THREE.RingGeometry(
+                    shockwaveStartRadius,
+                    shockwaveStartRadius +
+                        shockwaveRingThickness,
+                    48
+                );
+
+            const material =
+                new THREE.MeshBasicMaterial({
+
+                    color: 0xffffff,
+
+                    transparent: true,
+
+                    opacity:
+                        shockwaveMaxOpacity,
+
+                    side: THREE.DoubleSide,
+
+                    depthWrite: false
+
+                });
+
+            const mesh =
+                new THREE.Mesh(
+                    geometry,
+                    material
+                );
+
+            // 地面に水平なリングにする
+            mesh.rotation.x =
+                -Math.PI / 2;
+
+            // キャラクターの少し前方に配置
+            const forward =
+                new THREE.Vector3(
+                    0,
+                    0,
+                    1
+                );
+
+            forward.applyQuaternion(
+                targetModel.quaternion
+            );
+
+            forward.y = 0;
+
+            forward.normalize();
+
+            mesh.position.copy(
+                targetModel.position
+            );
+
+            mesh.position.addScaledVector(
+                forward,
+                shockwaveForwardOffset
+            );
+
+            // 地面とのz-fightingを避けるため僅かに浮かせる
+            mesh.position.y += 0.05;
+
+            scene.add(mesh);
+
+            shockwaves.push({
+
+                mesh: mesh,
+
+                elapsed: 0
+
+            });
+
+        }
+
+
+        function updateShockwaves(delta) {
+
+            for (
+                let i =
+                    shockwaves.length - 1;
+                i >= 0;
+                i--
+            ) {
+
+                const shockwave =
+                    shockwaves[i];
+
+                shockwave.elapsed +=
+                    delta;
+
+                const t =
+                    Math.min(
+                        shockwave.elapsed /
+                            shockwaveDuration,
+                        1
+                    );
+
+                // 広がっていく
+                const scale =
+                    1 +
+                    t *
+                        (shockwaveMaxScale -
+                            1);
+
+                shockwave.mesh.scale.set(
+                    scale,
+                    scale,
+                    scale
+                );
+
+                // フェードアウトしていく
+                shockwave.mesh.material.opacity =
+                    shockwaveMaxOpacity *
+                    (1 - t);
+
+                if (t >= 1) {
+
+                    scene.remove(
+                        shockwave.mesh
+                    );
+
+                    shockwave.mesh.geometry.dispose();
+
+                    shockwave.mesh.material.dispose();
+
+                    shockwaves.splice(
+                        i,
+                        1
+                    );
+
+                }
+
+            }
+
+        }
+
+
+        // ============================================================
         // 現在、移動入力があるかどうか
         // ============================================================
 
@@ -815,6 +990,9 @@
 
             // ジャンプ開始時にフレーム数をリセット
             jumpFrameCount = 0;
+
+            // 今回のjump用に衝撃波の発生状態をリセット
+            jumpShockwaveSpawned = false;
 
             const jumpAction =
                 actions.jump;
@@ -1781,6 +1959,12 @@
                 delta
             );
 
+            // 衝撃波はjump/dash/idleどの状態にも関係なく
+            // 常に自身の経過時間だけで更新する
+            updateShockwaves(
+                delta
+            );
+
 
             if (mixer) {
 
@@ -1809,6 +1993,24 @@
                             actions.jump.time *
                             animationFPS
                         );
+
+                    // --------------------------------------------
+                    // 22フレーム目で衝撃波を発生
+                    // （1回のjumpにつき1回だけ）
+                    // --------------------------------------------
+
+                    if (
+                        !jumpShockwaveSpawned &&
+                        jumpFrameCount >=
+                        shockwaveFrame
+                    ) {
+
+                        spawnShockwave();
+
+                        jumpShockwaveSpawned =
+                            true;
+
+                    }
 
                     if (
                         jumpFrameCount >=
