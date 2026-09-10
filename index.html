@@ -315,24 +315,26 @@
         let ct1KnockbackElapsed = 0;
 
         const ct1KnockbackVelocity = new THREE.Vector3();
-        const ct1KnockbackDuration = 0.4;  // ノックバックが続く時間（秒）※強化：長め
-        const ct1KnockbackStrength = 7.5;  // ノックバックの初速 ※強化：大幅アップ
-        const ct1KnockbackDamping = 4.0;   // 速度の減衰係数（大きいほど早く止まる）※強化に合わせて減衰を緩めに
+        const ct1KnockbackDuration = 0.5;  // ノックバックが続く時間（秒）※さらに強化：長め
+        const ct1KnockbackStrength = 14.0; // ノックバックの初速 ※さらに強化：大幅アップ
+        const ct1KnockbackDamping = 3.0;   // 速度の減衰係数（大きいほど早く止まる）※さらに強化：飛距離を伸ばすため減衰を緩める
 
 
         // ------------------------------------------------------------
         // ct1のジャンプ攻撃 → mgヒット時のワープ
         //
         // ct1のjumpアニメーション再生中、22フレーム目に到達した時点で、
-        // 斬撃エフェクトの発生源（右手首ボーン）とmgとの距離をチェックする。
-        // mgにはct1のおよそ2倍の身長を想定した縦方向の当たり判定を用意し、
-        // 水平距離・垂直距離の両方が範囲内であれば、そのジャンプにつき
-        // 1回だけmgをct1から少し離れた場所へワープさせる。
+        // ct1の真下から少し前寄りの位置を攻撃判定の発生源とし、mgとの
+        // 距離をチェックする。mgにはct1のおよそ2倍の身長を想定した
+        // 縦方向の当たり判定を用意し、水平距離・垂直距離の両方が範囲内
+        // であれば、そのジャンプにつき1回だけmgをct1から少し離れた
+        // 場所へワープさせる。
         // ------------------------------------------------------------
         const ct1ApproxHeight = 1.8;                 // ct1のおおよその身長（目安）
         const mgHitboxHeight = ct1ApproxHeight * 2;  // mgの当たり判定の高さ（ct1のおよそ2倍）
         const mgBodyRadius = 1.3;                    // mg本体の水平方向の当たり判定半径
         const ct1AttackHitboxRadius = 1.0;           // ct1のジャンプ攻撃の当たり判定半径
+        const ct1AttackForwardOffset = 0.8;          // ct1の真下から前方へずらす距離
         const jumpAttackFrame = 22;                  // 攻撃判定を発生させるジャンプアニメのフレーム
         const mgWarpDistance = 4.5;                  // ヒット時、mgをct1からどれだけ離れた位置へワープさせるか
 
@@ -922,6 +924,19 @@
                 knockDir.normalize();
             }
 
+            // ノックバック発生時は、進行中の操作（ジャンプ・ダッシュ・移動）を
+            // 全て強制的に中断する
+            if (isDashing) {
+                isDashing = false;
+                targetModel.visible = true;
+            }
+
+            if (isJumping) {
+                isJumping = false;
+            }
+
+            setAction('idle');
+
             ct1KnockbackVelocity.copy(knockDir).multiplyScalar(ct1KnockbackStrength);
             ct1KnockbackElapsed = 0;
             isCt1Knockback = true;
@@ -960,21 +975,32 @@
         // ============================================================
         function updateCt1JumpAttackHit() {
 
-            if (!mgModel || !targetModel || !slashSourceNode) return;
+            if (!mgModel || !targetModel) return;
             if (!isJumping) return;
             if (jumpAttackHitApplied) return;
             if (jumpFrameCount < jumpAttackFrame) return;
 
-            slashSourceNode.getWorldPosition(slashSourceWorldPosition);
+            // ct1の真下（現在の高さ）から少し前寄りの位置を攻撃判定の発生源とする
+            const forward = new THREE.Vector3(0, 0, 1);
+            forward.applyQuaternion(targetModel.quaternion);
+            forward.y = 0;
 
-            const dx = slashSourceWorldPosition.x - mgModel.position.x;
-            const dz = slashSourceWorldPosition.z - mgModel.position.z;
+            if (forward.lengthSq() > 0) {
+                forward.normalize();
+            }
+
+            const attackPosition = targetModel.position.clone();
+            attackPosition.y += jumpHeightOffset;
+            attackPosition.addScaledVector(forward, ct1AttackForwardOffset);
+
+            const dx = attackPosition.x - mgModel.position.x;
+            const dz = attackPosition.z - mgModel.position.z;
             const horizontalDistance = Math.hypot(dx, dz);
 
             if (horizontalDistance > ct1AttackHitboxRadius + mgBodyRadius) return;
 
             // mgの足元からmgHitboxHeightの高さまでを当たり判定とする
-            const relativeHeight = slashSourceWorldPosition.y - mgModel.position.y;
+            const relativeHeight = attackPosition.y - mgModel.position.y;
 
             if (relativeHeight < 0 || relativeHeight > mgHitboxHeight) return;
 
