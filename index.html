@@ -80,7 +80,7 @@
         #jump-button {
             position: absolute;
             right: 35px;
-            bottom: 40px;
+            bottom: 75px;
             width: 90px;
             height: 90px;
             z-index: 20;
@@ -103,6 +103,37 @@
             background: rgba(255, 255, 255, 0.35);
             transform: scale(0.94);
         }
+
+        /* ============================================================
+           ジャンプボタンの右下：ダッシュ（高速移動）ボタン
+        ============================================================ */
+        #dash-button {
+            position: absolute;
+            right: 20px;
+            bottom: 15px;
+            width: 56px;
+            height: 56px;
+            z-index: 20;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.18);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 22px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #dash-button:active {
+            background: rgba(255, 255, 255, 0.35);
+            transform: scale(0.94);
+        }
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -120,6 +151,9 @@
 
     <!-- ジャンプボタン -->
     <div id="jump-button">↑</div>
+
+    <!-- ダッシュボタン（ジャンプボタンの右下） -->
+    <div id="dash-button">⏫</div>
 
     <script>
 
@@ -463,9 +497,10 @@
         // ============================================================
         // パーティクル共通処理
         //
-        // 衝撃波の閃光/赤黒い破片、黒っぽい上方爆発、斬撃エフェクトなど、
-        // 見た目は違えど同じ物理（速度・重力・回転・フェード）で動く
-        // パーティクルをすべてこの配列でまとめて管理する。
+        // 衝撃波の閃光/赤黒い破片、黒っぽい上方爆発、斬撃エフェクト、
+        // ダッシュの軌跡など、見た目は違えど同じ物理（速度・重力・
+        // 回転・フェード）で動くパーティクルをすべてこの配列でまとめて
+        // 管理する。
         // ============================================================
         const particles = [];
 
@@ -509,9 +544,9 @@
         // ------------------------------------------------------------
         // 細かい四角（箱型）のパーティクルを一括生成する汎用関数
         //
-        // 衝撃波の破片・黒い爆発・斬撃エフェクトはすべてこれを使う。
-        // 色や個数、速度、重力、範囲（spawnSpread）だけを変えることで
-        // 見た目の違うエフェクトを作り出す。
+        // 衝撃波の破片・黒い爆発・斬撃エフェクト・ダッシュの軌跡は
+        // すべてこれを使う。色や個数、速度、重力、範囲（spawnSpread）
+        // だけを変えることで見た目の違うエフェクトを作り出す。
         // ------------------------------------------------------------
         function spawnCubeBurst(position, params) {
 
@@ -703,6 +738,7 @@
         const blackBurstSpawnSpread = 0.2;
 
         // 「黒っぽい」表現のため、ごく暗い赤黒～純粋な黒の間で混ぜる
+        // （ダッシュの軌跡パーティクルもこの、より暗い配色を流用する）
         const blackBurstColorDark = new THREE.Color(0x1a0000);
         const blackBurstColorBlack = new THREE.Color(0x000000);
 
@@ -840,6 +876,126 @@
 
 
         // ============================================================
+        // ダッシュ（高速移動）
+        //
+        // ダッシュボタン押下で、ct1が現在向いている方向へ一瞬で
+        // 高速移動する。移動中はct1本体を非表示にし、代わりに
+        // 軌道上へ「衝撃波の黒い爆発」と同じ形状・より暗い配色の
+        // 四角パーティクルを継続的に発生させ、駆け抜けた軌跡を
+        // 表現する。
+        // ============================================================
+        let isDashing = false;
+        let dashElapsed = 0;
+
+        const dashDuration = 0.22;   // ダッシュ全体の所要時間（秒）
+        const dashDistance = 7.0;    // ダッシュで進む距離（メートル）
+
+        const dashDirection = new THREE.Vector3();
+        const dashStartPosition = new THREE.Vector3();
+        const dashCurrentPosition = new THREE.Vector3();
+        const dashTrailSpawnPosition = new THREE.Vector3();
+
+        // ------------------------------------
+        // 軌跡パーティクルのパラメータ
+        // （衝撃波の黒い爆発より、その場に留まりやすいよう
+        //   速度・重力をやや控えめにして「軌跡」らしく見せる）
+        // ------------------------------------
+        const dashTrailSpawnCountPerFrame = 5;
+        const dashTrailSpawnSpread = 0.35;
+
+        const dashTrailMinSize = 0.12;
+        const dashTrailMaxSize = 0.32;
+
+        const dashTrailMinSpeed = 0.2;
+        const dashTrailMaxSpeed = 1.0;
+
+        const dashTrailMinDuration = 0.35;
+        const dashTrailMaxDuration = 0.7;
+
+        const dashTrailGravity = 1.2;
+
+        const dashTrailElevationMin = -0.15;
+        const dashTrailElevationMax = 0.7;
+
+        // 軌跡パーティクルを腰の高さあたりへオフセットする量
+        const dashTrailHeightOffset = 0.9;
+
+
+        function spawnDashTrailParticles(position) {
+
+            spawnCubeBurst(position, {
+                count: dashTrailSpawnCountPerFrame,
+                minSize: dashTrailMinSize,
+                maxSize: dashTrailMaxSize,
+                minSpeed: dashTrailMinSpeed,
+                maxSpeed: dashTrailMaxSpeed,
+                minDuration: dashTrailMinDuration,
+                maxDuration: dashTrailMaxDuration,
+                gravity: dashTrailGravity,
+                // 衝撃波の黒い爆発と同じ、より暗めの配色を流用
+                colorA: blackBurstColorDark,
+                colorB: blackBurstColorBlack,
+                elevationMin: dashTrailElevationMin,
+                elevationMax: dashTrailElevationMax,
+                spawnSpread: dashTrailSpawnSpread
+            });
+
+        }
+
+
+        function dashForward() {
+
+            if (!targetModel) return;
+
+            // ダッシュ中・ジャンプ中は多重発動しない
+            if (isDashing || isJumping) return;
+
+            const forward = new THREE.Vector3(0, 0, 1);
+            forward.applyQuaternion(targetModel.quaternion);
+            forward.y = 0;
+            forward.normalize();
+
+            dashDirection.copy(forward);
+            dashStartPosition.copy(targetModel.position);
+            dashElapsed = 0;
+            isDashing = true;
+
+            // ダッシュ中はct1本体を隠す
+            targetModel.visible = false;
+
+        }
+
+
+        function updateDash(delta) {
+
+            if (!isDashing) return;
+
+            dashElapsed += delta;
+            const t = Math.min(dashElapsed / dashDuration, 1);
+
+            dashCurrentPosition.copy(dashStartPosition)
+                .addScaledVector(dashDirection, dashDistance * t);
+
+            targetModel.position.copy(dashCurrentPosition);
+
+            // 軌道上にパーティクルを発生させ続ける
+            dashTrailSpawnPosition.copy(dashCurrentPosition);
+            dashTrailSpawnPosition.y += dashTrailHeightOffset;
+            spawnDashTrailParticles(dashTrailSpawnPosition);
+
+            if (t >= 1) {
+
+                isDashing = false;
+                targetModel.visible = true;
+
+                updateMovementAnimation();
+
+            }
+
+        }
+
+
+        // ============================================================
         // カメラシェイク
         //
         // jumpの22フレーム目（インパクトのピーク）に合わせて発生させ、
@@ -898,6 +1054,9 @@
             // ジャンプ中は再度ジャンプしない
             if (isJumping) return;
 
+            // ダッシュ中はジャンプしない
+            if (isDashing) return;
+
             isJumping = true;
             jumpFrameCount = 0;
             jumpShockwaveSpawned = false;
@@ -924,6 +1083,18 @@
             e.preventDefault();
             e.stopPropagation();
             jump();
+        }, { passive: false });
+
+
+        // ============================================================
+        // ダッシュボタン
+        // ============================================================
+        const dashButton = document.getElementById('dash-button');
+
+        dashButton.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dashForward();
         }, { passive: false });
 
 
@@ -1092,6 +1263,7 @@
 
             if (e.target.closest('#joystick-container')) return;
             if (e.target.closest('#jump-button')) return;
+            if (e.target.closest('#dash-button')) return;
             if (isCameraDragging) return;
 
             if (e.clientX >= window.innerWidth / 2) {
@@ -1165,8 +1337,9 @@
         // ============================================================
         // 移動アニメーション更新
         //
-        // jumpが中断／完走してisJumpingがfalseになった直後に呼ばれ、
-        // その時点の入力状態に応じてdash / idleへ切り替える
+        // jumpが中断／完走してisJumpingがfalseになった直後や、
+        // ダッシュが終了した直後に呼ばれ、その時点の入力状態に
+        // 応じてdash / idleへ切り替える
         // ============================================================
         function updateMovementAnimation() {
 
@@ -1185,6 +1358,10 @@
         function updateModelMovement(delta) {
 
             if (!targetModel) return;
+
+            // ダッシュ中は通常の移動処理を行わない
+            // （位置更新はupdateDashが専任で行う）
+            if (isDashing) return;
 
             let moveX = joystickX;
             let moveY = joystickY;
@@ -1279,8 +1456,9 @@
             const delta = clock.getDelta();
 
             updateModelMovement(delta);
+            updateDash(delta);
 
-            // 衝撃波・黒い爆発・斬撃エフェクトはどれも、
+            // 衝撃波・黒い爆発・斬撃エフェクト・ダッシュの軌跡はどれも、
             // 常に自身の経過時間だけで更新する
             updateParticles(delta);
 
