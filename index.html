@@ -1,502 +1,1870 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>ct1.glb Test Viewer</title>
+    <meta charset="UTF-8">
 
-<style>
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-html, body {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background: #202020;
-}
+    <title>3D GLB Viewer - Analog Stick & Camera Control</title>
 
-canvas {
-    display: block;
-}
+    <style>
 
-#info {
-    position: fixed;
-    left: 10px;
-    top: 10px;
-    z-index: 10;
-    padding: 10px 12px;
-    max-width: calc(100% - 20px);
-    color: white;
-    background: rgba(0, 0, 0, 0.75);
-    font: 13px/1.5 monospace;
-    white-space: pre-wrap;
-    border-radius: 6px;
-}
-</style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            touch-action: none;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* ============================================================
+           左下：アナログスティック
+        ============================================================ */
+
+        #joystick-container {
+
+            position: absolute;
+
+            left: 30px;
+            bottom: 30px;
+
+            width: 150px;
+            height: 150px;
+
+            z-index: 20;
+
+            touch-action: none;
+
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #joystick-base {
+
+            position: absolute;
+
+            left: 0;
+            top: 0;
+
+            width: 150px;
+            height: 150px;
+
+            border-radius: 50%;
+
+            background: rgba(255, 255, 255, 0.15);
+
+            border: 2px solid rgba(255, 255, 255, 0.35);
+
+            touch-action: none;
+
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #joystick-stick {
+
+            position: absolute;
+
+            left: 52px;
+            top: 52px;
+
+            width: 46px;
+            height: 46px;
+
+            border-radius: 50%;
+
+            background: rgba(255, 255, 255, 0.45);
+
+            border: 2px solid rgba(255, 255, 255, 0.65);
+
+            touch-action: none;
+
+            user-select: none;
+            -webkit-user-select: none;
+
+            pointer-events: none;
+
+            transform: translate(0px, 0px);
+        }
+
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
 </head>
 
 <body>
 
-<div id="info">ct1.glb 読み込み開始...</div>
+    <div id="canvas-container"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r160/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
+    <!-- ============================================================
+         アナログスティック
+    ============================================================ -->
 
-<script>
+    <div id="joystick-container">
 
-'use strict';
+        <div id="joystick-base"></div>
 
-const info = document.getElementById('info');
+        <div id="joystick-stick"></div>
 
-function log(text) {
-    console.log(text);
-    info.textContent += '\n' + text;
-}
+    </div>
 
-const scene = new THREE.Scene();
+    <script>
 
-scene.background = new THREE.Color(0x202020);
+        // ============================================================
+        // Three.js 基本設定
+        // ============================================================
 
-const camera = new THREE.PerspectiveCamera(
-    45,
-    window.innerWidth / window.innerHeight,
-    0.01,
-    1000
-);
+        const scene = new THREE.Scene();
 
-const renderer = new THREE.WebGLRenderer({
-    antialias: true
-});
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
 
-renderer.setPixelRatio(
-    Math.min(window.devicePixelRatio, 2)
-);
-
-renderer.setSize(
-    window.innerWidth,
-    window.innerHeight
-);
-
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-document.body.appendChild(renderer.domElement);
-
-
-// 明るさを確保
-scene.add(
-    new THREE.AmbientLight(
-        0xffffff,
-        2.5
-    )
-);
-
-const keyLight = new THREE.DirectionalLight(
-    0xffffff,
-    4
-);
-
-keyLight.position.set(
-    5,
-    10,
-    8
-);
-
-scene.add(keyLight);
-
-const fillLight = new THREE.DirectionalLight(
-    0xffffff,
-    2
-);
-
-fillLight.position.set(
-    -5,
-    5,
-    -8
-);
-
-scene.add(fillLight);
-
-
-// 床
-const grid = new THREE.GridHelper(
-    10,
-    20,
-    0x666666,
-    0x333333
-);
-
-scene.add(grid);
-
-
-// XYZ軸
-const axes = new THREE.AxesHelper(2);
-
-scene.add(axes);
-
-
-const loader = new THREE.GLTFLoader();
-
-
-loader.load(
-
-    './ct1.glb',
-
-    function(gltf) {
-
-        log('✓ ct1.glb 読み込み成功');
-
-        const model = gltf.scene;
-
-        scene.add(model);
-
-
-        let meshCount = 0;
-        let skinnedMeshCount = 0;
-        let boneCount = 0;
-        let materialCount = 0;
-
-
-        model.traverse(function(obj) {
-
-            obj.visible = true;
-
-
-            if (obj.isMesh) {
-
-                meshCount++;
-
-
-                if (obj.isSkinnedMesh) {
-                    skinnedMeshCount++;
-                }
-
-
-                // 表示確認を最優先するため、
-                // 元のマテリアルを使わず単純な白色にする
-                obj.material =
-                    new THREE.MeshBasicMaterial({
-
-                        color: 0xffffff,
-
-                        side: THREE.DoubleSide
-
-                    });
-
-
-                obj.frustumCulled = false;
-
-
-                if (obj.geometry) {
-
-                    obj.geometry.computeBoundingBox();
-
-                }
-
-            }
-
-
-            if (obj.isBone) {
-
-                boneCount++;
-
-            }
-
-
-            if (obj.material) {
-
-                materialCount++;
-
-            }
-
+        const renderer = new THREE.WebGLRenderer({
+            antialias: true
         });
-
-
-        log(
-            'Mesh数: ' +
-            meshCount
-        );
-
-
-        log(
-            'SkinnedMesh数: ' +
-            skinnedMeshCount
-        );
-
-
-        log(
-            'Bone数: ' +
-            boneCount
-        );
-
-
-        log(
-            'Animation数: ' +
-            gltf.animations.length
-        );
-
-
-        if (gltf.animations.length) {
-
-            log(
-                'Animation: ' +
-                gltf.animations
-                    .map(a => a.name)
-                    .join(', ')
-            );
-
-        }
-
-
-        // モデル全体のBoundingBox
-        const box =
-            new THREE.Box3()
-                .setFromObject(model);
-
-
-        const size =
-            box.getSize(
-                new THREE.Vector3()
-            );
-
-
-        const center =
-            box.getCenter(
-                new THREE.Vector3()
-            );
-
-
-        log(
-            'BoundingBox size: ' +
-
-            size.x.toFixed(3) +
-            ' / ' +
-
-            size.y.toFixed(3) +
-            ' / ' +
-
-            size.z.toFixed(3)
-        );
-
-
-        log(
-            'BoundingBox center: ' +
-
-            center.x.toFixed(3) +
-            ' / ' +
-
-            center.y.toFixed(3) +
-            ' / ' +
-
-            center.z.toFixed(3)
-        );
-
-
-        // モデルを原点へ移動
-        model.position.sub(center);
-
-
-        // モデルサイズからカメラ距離を決定
-        const maxSize =
-            Math.max(
-                size.x,
-                size.y,
-                size.z
-            );
-
-
-        camera.position.set(
-
-            maxSize * 1.8,
-
-            maxSize * 0.8,
-
-            maxSize * 1.8
-
-        );
-
-
-        camera.lookAt(
-            0,
-            maxSize * 0.35,
-            0
-        );
-
-
-        // アニメーション
-        let mixer = null;
-
-
-        if (gltf.animations.length > 0) {
-
-            mixer =
-                new THREE.AnimationMixer(
-                    model
-                );
-
-
-            const idle =
-                gltf.animations.find(
-                    a => a.name === 'idle'
-                );
-
-
-            const action =
-                idle ||
-                gltf.animations[0];
-
-
-            if (action) {
-
-                const animationAction =
-                    mixer.clipAction(action);
-
-                animationAction.reset();
-                animationAction.play();
-
-                log(
-                    '再生Animation: ' +
-                    action.name
-                );
-
-            }
-
-        }
-
-
-        // Mesh情報
-        model.traverse(function(obj) {
-
-            if (obj.isMesh) {
-
-                log(
-                    'Mesh: ' +
-                    obj.name +
-                    ' / geometry=' +
-                    (
-                        obj.geometry
-                        ? 'OK'
-                        : 'NONE'
-                    )
-                );
-
-            }
-
-        });
-
-
-        window.__mixer = mixer;
-        window.__model = model;
-
-
-        info.style.background =
-            'rgba(0, 80, 0, .8)';
-
-    },
-
-
-    function(xhr) {
-
-        if (xhr.total) {
-
-            const percent =
-                (
-                    xhr.loaded /
-                    xhr.total *
-                    100
-                ).toFixed(1);
-
-
-            info.textContent =
-                'ct1.glb 読み込み中... ' +
-                percent +
-                '%';
-
-        }
-
-    },
-
-
-    function(error) {
-
-        console.error(
-            'ct1.glb 読み込み失敗:',
-            error
-        );
-
-
-        info.textContent =
-            '✗ ct1.glb 読み込み失敗\n\n' +
-            'Consoleに詳細なエラーがあります。\n' +
-            String(error);
-
-
-        info.style.background =
-            'rgba(100, 0, 0, .85)';
-
-    }
-
-);
-
-
-const clock = new THREE.Clock();
-
-
-function animate() {
-
-    requestAnimationFrame(
-        animate
-    );
-
-
-    const delta =
-        clock.getDelta();
-
-
-    if (window.__mixer) {
-
-        window.__mixer.update(
-            delta
-        );
-
-    }
-
-
-    renderer.render(
-        scene,
-        camera
-    );
-
-}
-
-
-animate();
-
-
-window.addEventListener(
-    'resize',
-    function() {
-
-        camera.aspect =
-            window.innerWidth /
-            window.innerHeight;
-
-
-        camera.updateProjectionMatrix();
-
 
         renderer.setSize(
             window.innerWidth,
             window.innerHeight
         );
 
-    }
-);
+        renderer.setPixelRatio(
+            Math.min(
+                window.devicePixelRatio,
+                2
+            )
+        );
 
-</script>
+        renderer.outputEncoding =
+            THREE.sRGBEncoding;
+
+        renderer.toneMapping =
+            THREE.ACESFilmicToneMapping;
+
+        renderer.toneMappingExposure =
+            1.15;
+
+        document
+            .getElementById('canvas-container')
+            .appendChild(renderer.domElement);
+
+        // ============================================================
+        // ライト
+        // ============================================================
+
+        scene.add(
+            new THREE.AmbientLight(
+                0xffffff,
+                1.2
+            )
+        );
+
+        const dirLight =
+            new THREE.DirectionalLight(
+                0xffffff,
+                3
+            );
+
+        dirLight.position.set(
+            5,
+            10,
+            7.5
+        );
+
+        scene.add(dirLight);
+
+        const fillLight =
+            new THREE.DirectionalLight(
+                0xffffff,
+                1.5
+            );
+
+        fillLight.position.set(
+            -5,
+            5,
+            -7
+        );
+
+        scene.add(fillLight);
+
+        // ============================================================
+        // 環境マップ
+        // ============================================================
+
+        const pmremGenerator =
+            new THREE.PMREMGenerator(
+                renderer
+            );
+
+        const environmentScene =
+            new THREE.Scene();
+
+        environmentScene.background =
+            new THREE.Color(
+                0x202020
+            );
+
+        const environmentLight =
+            new THREE.HemisphereLight(
+                0xffffff,
+                0x222222,
+                2
+            );
+
+        environmentScene.add(
+            environmentLight
+        );
+
+        const environmentTarget =
+            pmremGenerator.fromScene(
+                environmentScene
+            );
+
+        scene.environment =
+            environmentTarget.texture;
+
+        // ============================================================
+        // カメラ設定
+        // ============================================================
+
+        const targetHeightOffset = 1.5;
+
+        const cameraDistance = 1.6;
+
+        let cameraSpherical =
+            new THREE.Spherical(
+                cameraDistance,
+                Math.PI / 2.2,
+                0
+            );
+
+        const minPolarAngle = 0.1;
+
+        const maxPolarAngle =
+            Math.PI / 2 - 0.05;
+
+        // ============================================================
+        // モデル・アニメーション
+        // ============================================================
+
+        let targetModel = null;
+
+        let bgModel = null;
+
+        let swModel = null;
+
+        let mixer = null;
+
+        let swMixer = null;
+
+        let actions = {};
+
+        let currentAction = null;
+
+        const clock =
+            new THREE.Clock();
+
+        // ============================================================
+        // 武器アタッチ
+        // ============================================================
+
+        let rightDummyBone = null;
+
+        let weaponGripBone = null;
+
+        let weaponAttached = false;
+
+        /*
+         * sw.glb の「持ち手」が
+         * sw.glb のルートからどの位置・向きにあるか
+         */
+        const weaponGripLocalMatrix =
+            new THREE.Matrix4();
+
+        /*
+         * 持ち手の位置を右ダミーに合わせるための
+         * 武器ルートのローカル行列
+         */
+        const weaponRootOffsetMatrix =
+            new THREE.Matrix4();
+
+        // ============================================================
+        // 移動・カメラ設定
+        // ============================================================
+
+        const maxMoveSpeed = 4.0;
+
+        const rotationSpeed = 10.0;
+
+        const cameraTouchSensitivity = 0.005;
+
+        // ============================================================
+        // GLTF Loader
+        // ============================================================
+
+        const loader =
+            new THREE.GLTFLoader();
+
+        // ============================================================
+        // 背景モデル
+        // ============================================================
+
+        loader.load(
+
+            './bg.glb',
+
+            function (gltf) {
+
+                bgModel =
+                    gltf.scene;
+
+                bgModel.scale.set(
+                    2,
+                    2,
+                    2
+                );
+
+                // ====================================================
+                // 元のマテリアルの色を使用したワイヤーフレーム
+                // ====================================================
+
+                bgModel.traverse(
+                    (child) => {
+
+                        if (!child.isMesh) {
+                            return;
+                        }
+
+                        const oldMaterial =
+                            child.material;
+
+                        const materials =
+                            Array.isArray(
+                                oldMaterial
+                            )
+                                ? oldMaterial
+                                : [oldMaterial];
+
+                        const newMaterials =
+                            materials.map(
+                                (material) => {
+
+                                    return new THREE.MeshBasicMaterial({
+
+                                        wireframe: true,
+
+                                        transparent:
+                                            material.transparent,
+
+                                        opacity:
+                                            material.opacity,
+
+                                        map:
+                                            material.map || null,
+
+                                        vertexColors:
+                                            material.vertexColors
+
+                                    });
+
+                                }
+                            );
+
+                        child.material =
+                            Array.isArray(
+                                oldMaterial
+                            )
+                                ? newMaterials
+                                : newMaterials[0];
+
+                    }
+                );
+
+                scene.add(bgModel);
+
+            },
+
+            undefined,
+
+            function (error) {
+
+                console.error(
+                    'bg.glb の読み込みエラー:',
+                    error
+                );
+
+            }
+
+        );
+
+        // ============================================================
+        // ターゲットモデル
+        // ============================================================
+
+        loader.load(
+
+            './ct1.glb',
+
+            function (gltf) {
+
+                targetModel =
+                    gltf.scene;
+
+                targetModel.rotation.y =
+                    Math.PI;
+
+                // ====================================================
+                // ct1.glb のマテリアル
+                // ====================================================
+
+                targetModel.traverse(
+                    (child) => {
+
+                        if (!child.isMesh) {
+                            return;
+                        }
+
+                        const materials =
+                            Array.isArray(
+                                child.material
+                            )
+                                ? child.material
+                                : [child.material];
+
+                        materials.forEach(
+                            (material) => {
+
+                                if (!material) {
+                                    return;
+                                }
+
+                                material.metalness =
+                                    0.05;
+
+                                material.roughness =
+                                    0.85;
+
+                                material.envMapIntensity =
+                                    0.15;
+
+                                if (
+                                    material.map
+                                ) {
+
+                                    material.map.encoding =
+                                        THREE.sRGBEncoding;
+
+                                    material.map.needsUpdate =
+                                        true;
+
+                                }
+
+                                material.needsUpdate =
+                                    true;
+
+                            }
+                        );
+
+                    }
+                );
+
+                scene.add(targetModel);
+
+                // ====================================================
+                // ボーン一覧を確認
+                // ====================================================
+
+                const boneNames = [];
+
+                targetModel.traverse(
+                    (child) => {
+
+                        if (child.isBone) {
+
+                            boneNames.push(
+                                child.name
+                            );
+
+                        }
+
+                    }
+                );
+
+                console.log(
+                    'ct1.glb ボーン一覧:',
+                    boneNames
+                );
+
+                // ====================================================
+                // 「右ダミー」ボーンを探す
+                // ====================================================
+
+                targetModel.traverse(
+                    (child) => {
+
+                        if (
+                            child.isBone &&
+                            child.name.trim() ===
+                            '右ダミー'
+                        ) {
+
+                            rightDummyBone =
+                                child;
+
+                            console.log(
+                                '右ダミーを発見:',
+                                child.name
+                            );
+
+                        }
+
+                    }
+                );
+
+                if (!rightDummyBone) {
+
+                    console.warn(
+                        'ct1.glb 内に「右ダミー」ボーンが見つかりません。'
+                    );
+
+                }
+
+                // ====================================================
+                // アニメーション
+                // ====================================================
+
+                if (
+                    gltf.animations &&
+                    gltf.animations.length > 0
+                ) {
+
+                    mixer =
+                        new THREE.AnimationMixer(
+                            targetModel
+                        );
+
+                    gltf.animations.forEach(
+                        (clip) => {
+
+                            const action =
+                                mixer.clipAction(
+                                    clip
+                                );
+
+                            action.setLoop(
+                                THREE.LoopRepeat,
+                                Infinity
+                            );
+
+                            action.clampWhenFinished =
+                                false;
+
+                            const animationName =
+                                clip.name
+                                    .trim()
+                                    .toLowerCase();
+
+                            if (
+                                animationName ===
+                                'idle'
+                            ) {
+
+                                actions.idle =
+                                    action;
+
+                            }
+
+                            if (
+                                animationName ===
+                                'dash'
+                            ) {
+
+                                actions.dash =
+                                    action;
+
+                            }
+
+                        }
+                    );
+
+                    setAction('idle');
+
+                }
+
+                updateCameraPosition();
+
+                tryAttachWeapon();
+
+            },
+
+            undefined,
+
+            function (error) {
+
+                console.error(
+                    'ct1.glb の読み込みエラー:',
+                    error
+                );
+
+            }
+
+        );
+
+        // ============================================================
+        // sw.glb
+        // ============================================================
+
+        loader.load(
+
+            './sw.glb',
+
+            function (gltf) {
+
+                swModel =
+                    gltf.scene;
+
+                console.log(
+                    'sw.glb 読み込み完了'
+                );
+
+                // ====================================================
+                // ボーン一覧を確認
+                // ====================================================
+
+                const weaponBoneNames = [];
+
+                swModel.traverse(
+                    (child) => {
+
+                        if (child.isBone) {
+
+                            weaponBoneNames.push(
+                                child.name
+                            );
+
+                        }
+
+                    }
+                );
+
+                console.log(
+                    'sw.glb ボーン一覧:',
+                    weaponBoneNames
+                );
+
+                // ====================================================
+                // 「持ち手」ボーンを探す
+                // ====================================================
+
+                swModel.traverse(
+                    (child) => {
+
+                        if (
+                            child.isBone &&
+                            child.name.trim() ===
+                            '持ち手'
+                        ) {
+
+                            weaponGripBone =
+                                child;
+
+                            console.log(
+                                '持ち手を発見:',
+                                child.name
+                            );
+
+                        }
+
+                    }
+                );
+
+                if (!weaponGripBone) {
+
+                    console.warn(
+                        'sw.glb 内に「持ち手」ボーンが見つかりません。'
+                    );
+
+                }
+
+                // ====================================================
+                // 武器を一旦 scene に追加
+                //
+                // 親子関係を直接変更せず、
+                // 毎フレームワールド行列を同期する
+                // ====================================================
+
+                scene.add(
+                    swModel
+                );
+
+                // ====================================================
+                // sw.glb のアニメーションは使用しない
+                // ====================================================
+
+                if (
+                    gltf.animations &&
+                    gltf.animations.length > 0
+                ) {
+
+                    swMixer =
+                        new THREE.AnimationMixer(
+                            swModel
+                        );
+
+                }
+
+                // ====================================================
+                // 武器のアタッチ
+                // ====================================================
+
+                tryAttachWeapon();
+
+            },
+
+            undefined,
+
+            function (error) {
+
+                console.error(
+                    'sw.glb の読み込みエラー:',
+                    error
+                );
+
+            }
+
+        );
+
+        // ============================================================
+        // 武器アタッチ初期化
+        // ============================================================
+
+        function tryAttachWeapon() {
+
+            if (
+                weaponAttached
+            ) {
+
+                return;
+
+            }
+
+            if (
+                !swModel ||
+                !weaponGripBone ||
+                !targetModel ||
+                !rightDummyBone
+            ) {
+
+                return;
+
+            }
+
+            // ========================================================
+            // すべてのワールド行列を更新
+            // ========================================================
+
+            scene.updateMatrixWorld(
+                true
+            );
+
+            swModel.updateMatrixWorld(
+                true
+            );
+
+            weaponGripBone.updateMatrixWorld(
+                true
+            );
+
+            rightDummyBone.updateMatrixWorld(
+                true
+            );
+
+            // ========================================================
+            // 持ち手のワールド行列
+            // ========================================================
+
+            const gripWorldMatrix =
+                new THREE.Matrix4()
+                    .copy(
+                        weaponGripBone.matrixWorld
+                    );
+
+            // ========================================================
+            // sw.glb のルートワールド行列の逆行列
+            // ========================================================
+
+            const inverseWeaponRoot =
+                new THREE.Matrix4()
+                    .copy(
+                        swModel.matrixWorld
+                    )
+                    .invert();
+
+            // ========================================================
+            // swルート → 持ち手
+            //
+            // これが「持ち手が武器のどこにあるか」
+            // ========================================================
+
+            weaponGripLocalMatrix
+                .multiplyMatrices(
+                    inverseWeaponRoot,
+                    gripWorldMatrix
+                );
+
+            // ========================================================
+            // 持ち手を原点にするための逆行列
+            // ========================================================
+
+            weaponRootOffsetMatrix
+                .copy(
+                    weaponGripLocalMatrix
+                )
+                .invert();
+
+            // ========================================================
+            // 武器ルートを直接制御する
+            // ========================================================
+
+            swModel.matrixAutoUpdate =
+                false;
+
+            weaponAttached =
+                true;
+
+            console.log(
+                'sw.glb のアタッチ準備完了'
+            );
+
+            console.log(
+                '持ち手 → 右ダミー追従を開始'
+            );
+
+            updateWeaponAttachment();
+
+        }
+
+        // ============================================================
+        // 武器追従
+        // ============================================================
+
+        function updateWeaponAttachment() {
+
+            if (
+                !weaponAttached ||
+                !swModel ||
+                !rightDummyBone
+            ) {
+
+                return;
+
+            }
+
+            // ========================================================
+            // 右ダミーのワールド行列
+            // ========================================================
+
+            rightDummyBone.updateMatrixWorld(
+                true
+            );
+
+            /*
+             * 右ダミーの位置・回転
+             *
+             *        ↓
+             *
+             * [右ダミーのワールド行列]
+             *
+             *        ×
+             *
+             * [持ち手を原点にする補正]
+             *
+             *        ↓
+             *
+             * [sw.glb のワールド行列]
+             */
+
+            const weaponWorldMatrix =
+                new THREE.Matrix4()
+                    .multiplyMatrices(
+                        rightDummyBone.matrixWorld,
+                        weaponRootOffsetMatrix
+                    );
+
+            // ========================================================
+            // sw.glb に直接ワールド行列を適用
+            // ========================================================
+
+            swModel.matrix.copy(
+                weaponWorldMatrix
+            );
+
+            swModel.matrixWorld.copy(
+                weaponWorldMatrix
+            );
+
+            swModel.matrixWorldNeedsUpdate =
+                false;
+
+        }
+
+        // ============================================================
+        // アニメーション切り替え
+        // ============================================================
+
+        function setAction(name) {
+
+            if (
+                !mixer ||
+                !actions[name]
+            ) {
+
+                return;
+
+            }
+
+            const nextAction =
+                actions[name];
+
+            if (
+                currentAction !==
+                nextAction
+            ) {
+
+                if (currentAction) {
+
+                    currentAction.fadeOut(
+                        0.2
+                    );
+
+                }
+
+                nextAction
+                    .reset()
+                    .setLoop(
+                        THREE.LoopRepeat,
+                        Infinity
+                    )
+                    .fadeIn(0.2)
+                    .play();
+
+                currentAction =
+                    nextAction;
+
+            }
+
+        }
+
+        // ============================================================
+        // カメラ位置更新
+        // ============================================================
+
+        function updateCameraPosition() {
+
+            if (!targetModel) {
+                return;
+            }
+
+            const targetPosition =
+                targetModel.position
+                    .clone()
+                    .add(
+                        new THREE.Vector3(
+                            0,
+                            targetHeightOffset,
+                            0
+                        )
+                    );
+
+            const offset =
+                new THREE.Vector3()
+                    .setFromSpherical(
+                        cameraSpherical
+                    );
+
+            camera.position
+                .copy(targetPosition)
+                .add(offset);
+
+            camera.lookAt(
+                targetPosition
+            );
+
+        }
+
+        // ============================================================
+        // アナログスティック
+        // ============================================================
+
+        const joystickContainer =
+            document.getElementById(
+                'joystick-container'
+            );
+
+        const joystickStick =
+            document.getElementById(
+                'joystick-stick'
+            );
+
+        let joystickPointerId = null;
+
+        let joystickX = 0;
+
+        let joystickY = 0;
+
+        const joystickRadius = 52;
+
+        const joystickDeadZone = 0.08;
+
+        // ------------------------------------------------------------
+        // スティック位置更新
+        // ------------------------------------------------------------
+
+        function updateJoystick(
+            clientX,
+            clientY
+        ) {
+
+            const rect =
+                joystickContainer.getBoundingClientRect();
+
+            const centerX =
+                rect.left +
+                rect.width / 2;
+
+            const centerY =
+                rect.top +
+                rect.height / 2;
+
+            let dx =
+                clientX -
+                centerX;
+
+            let dy =
+                clientY -
+                centerY;
+
+            const distance =
+                Math.hypot(
+                    dx,
+                    dy
+                );
+
+            if (
+                distance >
+                joystickRadius
+            ) {
+
+                dx =
+                    dx / distance *
+                    joystickRadius;
+
+                dy =
+                    dy / distance *
+                    joystickRadius;
+
+            }
+
+            joystickStick.style.transform =
+                `translate(${dx}px, ${dy}px)`;
+
+            joystickX =
+                dx /
+                joystickRadius;
+
+            joystickY =
+                dy /
+                joystickRadius;
+
+            const normalizedDistance =
+                Math.hypot(
+                    joystickX,
+                    joystickY
+                );
+
+            if (
+                normalizedDistance <
+                joystickDeadZone
+            ) {
+
+                joystickX = 0;
+
+                joystickY = 0;
+
+            }
+
+        }
+
+        // ------------------------------------------------------------
+        // スティックリセット
+        // ------------------------------------------------------------
+
+        function resetJoystick() {
+
+            joystickPointerId =
+                null;
+
+            joystickX = 0;
+
+            joystickY = 0;
+
+            joystickStick.style.transform =
+                'translate(0px, 0px)';
+
+        }
+
+        // ------------------------------------------------------------
+        // スティック開始
+        // ------------------------------------------------------------
+
+        function handleJoystickStart(e) {
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (
+                joystickPointerId !== null
+            ) {
+
+                return;
+
+            }
+
+            joystickPointerId =
+                e.pointerId;
+
+            try {
+
+                joystickContainer.setPointerCapture(
+                    e.pointerId
+                );
+
+            } catch (err) {}
+
+            updateJoystick(
+                e.clientX,
+                e.clientY
+            );
+
+        }
+
+        // ------------------------------------------------------------
+        // スティック移動
+        // ------------------------------------------------------------
+
+        function handleJoystickMove(e) {
+
+            if (
+                e.pointerId !==
+                joystickPointerId
+            ) {
+
+                return;
+
+            }
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            updateJoystick(
+                e.clientX,
+                e.clientY
+            );
+
+        }
+
+        // ------------------------------------------------------------
+        // スティック終了
+        // ------------------------------------------------------------
+
+        function handleJoystickEnd(e) {
+
+            if (
+                e.pointerId !==
+                joystickPointerId
+            ) {
+
+                return;
+
+            }
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            try {
+
+                if (
+                    joystickContainer
+                        .hasPointerCapture(
+                            e.pointerId
+                        )
+                ) {
+
+                    joystickContainer
+                        .releasePointerCapture(
+                            e.pointerId
+                        );
+
+                }
+
+            } catch (err) {}
+
+            resetJoystick();
+
+        }
+
+        joystickContainer.addEventListener(
+            'pointerdown',
+            handleJoystickStart,
+            {
+                passive: false
+            }
+        );
+
+        joystickContainer.addEventListener(
+            'pointermove',
+            handleJoystickMove,
+            {
+                passive: false
+            }
+        );
+
+        joystickContainer.addEventListener(
+            'pointerup',
+            handleJoystickEnd,
+            {
+                passive: false
+            }
+        );
+
+        joystickContainer.addEventListener(
+            'pointercancel',
+            handleJoystickEnd,
+            {
+                passive: false
+            }
+        );
+
+        // ============================================================
+        // キーボード操作
+        // ============================================================
+
+        const keyState = {
+
+            up: false,
+            down: false,
+            left: false,
+            right: false
+
+        };
+
+        window.addEventListener(
+            'keydown',
+            (e) => {
+
+                if (
+                    e.key === 'ArrowUp' ||
+                    e.key === 'w'
+                ) {
+
+                    keyState.up = true;
+
+                }
+
+                if (
+                    e.key === 'ArrowDown' ||
+                    e.key === 's'
+                ) {
+
+                    keyState.down = true;
+
+                }
+
+                if (
+                    e.key === 'ArrowLeft' ||
+                    e.key === 'a'
+                ) {
+
+                    keyState.left = true;
+
+                }
+
+                if (
+                    e.key === 'ArrowRight' ||
+                    e.key === 'd'
+                ) {
+
+                    keyState.right = true;
+
+                }
+
+            }
+        );
+
+        window.addEventListener(
+            'keyup',
+            (e) => {
+
+                if (
+                    e.key === 'ArrowUp' ||
+                    e.key === 'w'
+                ) {
+
+                    keyState.up = false;
+
+                }
+
+                if (
+                    e.key === 'ArrowDown' ||
+                    e.key === 's'
+                ) {
+
+                    keyState.down = false;
+
+                }
+
+                if (
+                    e.key === 'ArrowLeft' ||
+                    e.key === 'a'
+                ) {
+
+                    keyState.left = false;
+
+                }
+
+                if (
+                    e.key === 'ArrowRight' ||
+                    e.key === 'd'
+                ) {
+
+                    keyState.right = false;
+
+                }
+
+            }
+        );
+
+        // ============================================================
+        // カメラ操作
+        // ============================================================
+
+        let isCameraDragging = false;
+
+        let cameraPointerId = null;
+
+        let previousTouchX = 0;
+
+        let previousTouchY = 0;
+
+        // ------------------------------------------------------------
+        // カメラ開始
+        // ------------------------------------------------------------
+
+        function handleRightScreenStart(e) {
+
+            if (
+                e.target.closest(
+                    '#joystick-container'
+                )
+            ) {
+
+                return;
+
+            }
+
+            if (isCameraDragging) {
+
+                return;
+
+            }
+
+            if (
+                e.clientX >=
+                window.innerWidth / 2
+            ) {
+
+                e.preventDefault();
+
+                isCameraDragging =
+                    true;
+
+                cameraPointerId =
+                    e.pointerId;
+
+                previousTouchX =
+                    e.clientX;
+
+                previousTouchY =
+                    e.clientY;
+
+                try {
+
+                    renderer.domElement
+                        .setPointerCapture(
+                            e.pointerId
+                        );
+
+                } catch (err) {}
+
+            }
+
+        }
+
+        // ------------------------------------------------------------
+        // カメラ移動
+        // ------------------------------------------------------------
+
+        function handleRightScreenMove(e) {
+
+            if (!isCameraDragging) {
+
+                return;
+
+            }
+
+            if (
+                e.pointerId !==
+                cameraPointerId
+            ) {
+
+                return;
+
+            }
+
+            e.preventDefault();
+
+            const deltaX =
+                e.clientX -
+                previousTouchX;
+
+            const deltaY =
+                e.clientY -
+                previousTouchY;
+
+            cameraSpherical.theta -=
+                deltaX *
+                cameraTouchSensitivity;
+
+            cameraSpherical.phi -=
+                deltaY *
+                cameraTouchSensitivity;
+
+            cameraSpherical.phi =
+                Math.max(
+                    minPolarAngle,
+                    Math.min(
+                        maxPolarAngle,
+                        cameraSpherical.phi
+                    )
+                );
+
+            previousTouchX =
+                e.clientX;
+
+            previousTouchY =
+                e.clientY;
+
+        }
+
+        // ------------------------------------------------------------
+        // カメラ終了
+        // ------------------------------------------------------------
+
+        function handleRightScreenEnd(e) {
+
+            if (!isCameraDragging) {
+
+                return;
+
+            }
+
+            if (
+                e.pointerId !==
+                cameraPointerId
+            ) {
+
+                return;
+
+            }
+
+            e.preventDefault();
+
+            isCameraDragging =
+                false;
+
+            try {
+
+                if (
+                    renderer.domElement
+                        .hasPointerCapture(
+                            e.pointerId
+                        )
+                ) {
+
+                    renderer.domElement
+                        .releasePointerCapture(
+                            e.pointerId
+                        );
+
+                }
+
+            } catch (err) {}
+
+            cameraPointerId =
+                null;
+
+        }
+
+        window.addEventListener(
+            'pointerdown',
+            handleRightScreenStart,
+            {
+                passive: false
+            }
+        );
+
+        window.addEventListener(
+            'pointermove',
+            handleRightScreenMove,
+            {
+                passive: false
+            }
+        );
+
+        window.addEventListener(
+            'pointerup',
+            handleRightScreenEnd,
+            {
+                passive: false
+            }
+        );
+
+        window.addEventListener(
+            'pointercancel',
+            handleRightScreenEnd,
+            {
+                passive: false
+            }
+        );
+
+        // ============================================================
+        // キャラクター移動
+        // ============================================================
+
+        function updateModelMovement(delta) {
+
+            if (!targetModel) {
+
+                return;
+
+            }
+
+            let moveX =
+                joystickX;
+
+            let moveY =
+                joystickY;
+
+            let currentSpeed = 0;
+
+            let keyboardX = 0;
+
+            let keyboardY = 0;
+
+            if (keyState.right) {
+
+                keyboardX += 1;
+
+            }
+
+            if (keyState.left) {
+
+                keyboardX -= 1;
+
+            }
+
+            if (keyState.up) {
+
+                keyboardY -= 1;
+
+            }
+
+            if (keyState.down) {
+
+                keyboardY += 1;
+
+            }
+
+            if (
+                keyboardX !== 0 ||
+                keyboardY !== 0
+            ) {
+
+                const length =
+                    Math.hypot(
+                        keyboardX,
+                        keyboardY
+                    );
+
+                moveX =
+                    keyboardX /
+                    length;
+
+                moveY =
+                    keyboardY /
+                    length;
+
+                currentSpeed =
+                    maxMoveSpeed;
+
+            }
+
+            else {
+
+                if (
+                    moveX !== 0 ||
+                    moveY !== 0
+                ) {
+
+                    currentSpeed =
+                        maxMoveSpeed;
+
+                }
+
+                else {
+
+                    currentSpeed = 0;
+
+                }
+
+            }
+
+            const isMoving =
+                currentSpeed > 0;
+
+            if (isMoving) {
+
+                // ------------------------------------
+                // 移動中は dash
+                // ------------------------------------
+
+                if (
+                    actions.dash
+                ) {
+
+                    setAction('dash');
+
+                }
+
+                const cameraForward =
+                    new THREE.Vector3();
+
+                camera.getWorldDirection(
+                    cameraForward
+                );
+
+                cameraForward.y = 0;
+
+                cameraForward.normalize();
+
+                const cameraRight =
+                    new THREE.Vector3();
+
+                cameraRight.crossVectors(
+                    cameraForward,
+                    new THREE.Vector3(
+                        0,
+                        1,
+                        0
+                    )
+                ).normalize();
+
+                const moveDirection =
+                    new THREE.Vector3();
+
+                moveDirection
+                    .addScaledVector(
+                        cameraRight,
+                        moveX
+                    )
+                    .addScaledVector(
+                        cameraForward,
+                        -moveY
+                    );
+
+                if (
+                    moveDirection.lengthSq() > 0
+                ) {
+
+                    moveDirection.normalize();
+
+                }
+
+                targetModel.position
+                    .addScaledVector(
+                        moveDirection,
+                        currentSpeed * delta
+                    );
+
+                const targetAngle =
+                    Math.atan2(
+                        moveDirection.x,
+                        moveDirection.z
+                    );
+
+                const targetQuaternion =
+                    new THREE.Quaternion();
+
+                targetQuaternion.setFromAxisAngle(
+                    new THREE.Vector3(
+                        0,
+                        1,
+                        0
+                    ),
+                    targetAngle
+                );
+
+                targetModel.quaternion.slerp(
+                    targetQuaternion,
+                    rotationSpeed * delta
+                );
+
+            }
+
+            else {
+
+                // ------------------------------------
+                // 停止中は idle
+                // ------------------------------------
+
+                if (
+                    actions.idle
+                ) {
+
+                    setAction('idle');
+
+                }
+
+            }
+
+        }
+
+        // ============================================================
+        // メインループ
+        // ============================================================
+
+        function animate() {
+
+            requestAnimationFrame(
+                animate
+            );
+
+            const delta =
+                clock.getDelta();
+
+            // --------------------------------------------------------
+            // キャラクター移動
+            // --------------------------------------------------------
+
+            updateModelMovement(
+                delta
+            );
+
+            // --------------------------------------------------------
+            // ct1アニメーション
+            // --------------------------------------------------------
+
+            if (mixer) {
+
+                mixer.update(
+                    delta
+                );
+
+            }
+
+            // --------------------------------------------------------
+            // ct1のアニメーションによって
+            // 右ダミーが動いた後に武器を追従させる
+            // --------------------------------------------------------
+
+            if (
+                targetModel &&
+                rightDummyBone
+            ) {
+
+                targetModel.updateMatrixWorld(
+                    true
+                );
+
+            }
+
+            updateWeaponAttachment();
+
+            // --------------------------------------------------------
+            // カメラ
+            // --------------------------------------------------------
+
+            updateCameraPosition();
+
+            // --------------------------------------------------------
+            // 描画
+            // --------------------------------------------------------
+
+            renderer.render(
+                scene,
+                camera
+            );
+
+        }
+
+        animate();
+
+        // ============================================================
+        // リサイズ
+        // ============================================================
+
+        window.addEventListener(
+            'resize',
+            () => {
+
+                camera.aspect =
+                    window.innerWidth /
+                    window.innerHeight;
+
+                camera.updateProjectionMatrix();
+
+                renderer.setSize(
+                    window.innerWidth,
+                    window.innerHeight
+                );
+
+            }
+        );
+
+    </script>
 
 </body>
 </html>
