@@ -340,13 +340,17 @@
         let currentAction = null;
 
         // ジャンプ中かどうか
+        // true の間（＝jump中断/完走のどちらかが確定するまで）は
+        // 移動処理を一切行わない
         let isJumping = false;
 
         // jump開始からのフレーム数
         let jumpFrameCount = 0;
 
-        // 30フレーム以降は移動アニメーションへ移行可能
-        const jumpTransitionFrame = 30;
+        // このフレームに到達し、かつ移動入力がある場合のみ
+        // jumpをdashへ中断する（戦闘のリズムを崩さないため）
+        // 入力が無ければ中断せず、jumpを最後まで再生してidleへ戻す
+        const jumpTransitionFrame = 25;
 
         // GLBのアニメーションFPS
         const animationFPS = 30;
@@ -668,6 +672,11 @@
 
                     // ------------------------------------
                     // jump終了イベント
+                    //
+                    // 25フレーム到達前に完走した場合や、
+                    // 入力が無いままjumpを最後まで再生し終えた
+                    // 場合にここへ来る（中断済みならisJumpingは
+                    // 既にfalseなので何もしない）
                     // ------------------------------------
 
                     mixer.addEventListener(
@@ -676,13 +685,15 @@
 
                             if (
                                 event.action ===
-                                actions.jump
+                                actions.jump &&
+                                isJumping
                             ) {
 
                                 isJumping =
                                     false;
 
-                                // jump終了後は通常状態へ
+                                // jump終了後は現在の入力状態に応じて
+                                // dash / idle へ切り替える
                                 updateMovementAnimation();
 
                             }
@@ -756,6 +767,24 @@
                     nextAction;
 
             }
+
+        }
+
+
+        // ============================================================
+        // 現在、移動入力があるかどうか
+        // ============================================================
+
+        function hasMoveInput() {
+
+            return (
+                joystickX !== 0 ||
+                joystickY !== 0 ||
+                keyState.up ||
+                keyState.down ||
+                keyState.left ||
+                keyState.right
+            );
 
         }
 
@@ -1468,38 +1497,14 @@
 
         // ============================================================
         // 移動アニメーション更新
+        //
+        // jumpが中断／完走してisJumpingがfalseになった直後に呼ばれ、
+        // その時点の入力状態に応じてdash / idleへ切り替える
         // ============================================================
 
         function updateMovementAnimation() {
 
-            // jump中で30フレーム未満なら何もしない
-            if (
-                isJumping &&
-                jumpFrameCount <
-                jumpTransitionFrame
-            ) {
-
-                return;
-
-            }
-
-
-            const isMoving =
-                (
-                    joystickX !== 0 ||
-                    joystickY !== 0 ||
-                    keyState.up ||
-                    keyState.down ||
-                    keyState.left ||
-                    keyState.right
-                );
-
-
-            // ========================================================
-            // 移動中ならdash
-            // ========================================================
-
-            if (isMoving) {
+            if (hasMoveInput()) {
 
                 if (actions.dash) {
 
@@ -1509,23 +1514,11 @@
 
             }
 
-
-            // ========================================================
-            // 移動していない場合
-            //
-            // jump中ならidleには切り替えない
-            // jump終了後のみidleへ切り替える
-            // ========================================================
-
             else {
 
-                if (!isJumping) {
+                if (actions.idle) {
 
-                    if (actions.idle) {
-
-                        setAction('idle');
-
-                    }
+                    setAction('idle');
 
                 }
 
@@ -1547,8 +1540,7 @@
             }
 
             // ========================================================
-            // ジャンプ中は移動処理を行わない
-            // （位置・回転・アニメーション切り替えすべて停止）
+            // ジャンプ中（dashへ中断されるまで）は移動処理を行わない
             // ========================================================
 
             if (isJumping) {
@@ -1798,7 +1790,13 @@
 
 
                 // ====================================================
-                // jumpのフレーム数を確認
+                // jumpのフレーム数を確認し、
+                // 25フレーム以降かつ移動入力があれば
+                // dashへ中断する（戦闘のリズムを崩さないため）
+                //
+                // 入力が無ければ中断せず、jumpを最後まで再生させ、
+                // 'finished' イベント（アニメーション完走）で
+                // idleへ戻す
                 // ====================================================
 
                 if (
@@ -1812,18 +1810,15 @@
                             animationFPS
                         );
 
-
-                    // --------------------------------------------
-                    // 30フレーム到達
-                    // --------------------------------------------
-
                     if (
                         jumpFrameCount >=
-                        jumpTransitionFrame
+                        jumpTransitionFrame &&
+                        hasMoveInput()
                     ) {
 
-                        // ジャンプ終了扱いにして
-                        // 通常の移動・アニメーション処理へ戻す
+                        // jumpを中断してdashへ
+                        // （以降 updateModelMovement の
+                        //   isJumpingガードが解除され、移動可能になる）
                         isJumping =
                             false;
 
