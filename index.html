@@ -309,15 +309,15 @@
 
 
         // ------------------------------------------------------------
-        // ct1のノックバック
+        // ct1のノックバック（強化版）
         // ------------------------------------------------------------
         let isCt1Knockback = false;
         let ct1KnockbackElapsed = 0;
 
         const ct1KnockbackVelocity = new THREE.Vector3();
-        const ct1KnockbackDuration = 0.25; // ノックバックが続く時間（秒）
-        const ct1KnockbackStrength = 3.0;  // ノックバックの初速
-        const ct1KnockbackDamping = 6.0;   // 速度の減衰係数（大きいほど早く止まる）
+        const ct1KnockbackDuration = 0.4;  // ノックバックが続く時間（秒）※強化：長め
+        const ct1KnockbackStrength = 7.5;  // ノックバックの初速 ※強化：大幅アップ
+        const ct1KnockbackDamping = 4.0;   // 速度の減衰係数（大きいほど早く止まる）※強化に合わせて減衰を緩めに
 
 
         // ------------------------------------------------------------
@@ -331,24 +331,24 @@
 
         // ------------------------------------------------------------
         // attack1中、20フレーム目からmgの前に大袈裟に出す
-        // 白と黄色のブロックで構成された三日月エフェクト
+        // 白と黄色のブロックで構成された三日月エフェクト（強化版）
         // ------------------------------------------------------------
         const mgCrescentFrame = 20; // このフレームに到達したら発生させる
         let mgCrescentSpawned = false;
 
-        const mgCrescentArcSteps = 36;              // 三日月を構成するブロックの数
+        const mgCrescentArcSteps = 60;               // 三日月を構成するブロックの数 ※強化：数を増やす
         const mgCrescentArcAngleRange = Math.PI * 0.55; // 弧の全体角度（約99度）
-        const mgCrescentRadius = 1.8;                // mgからの基本半径
-        const mgCrescentRadiusVariance = 0.3;         // 半径のランダムなばらつき
-        const mgCrescentHeight = 1.1;                 // 発生高さ
+        const mgCrescentRadius = 2.7;                 // mgからの基本半径 ※強化：範囲を広げる
+        const mgCrescentRadiusVariance = 0.4;         // 半径のランダムなばらつき
+        const mgCrescentHeight = 1.7;                 // 発生高さ ※強化：位置を上げる
 
         const mgCrescentCubeMinSize = 0.16;
         const mgCrescentCubeMaxSize = 0.46;
 
-        const mgCrescentOutwardSpeed = 2.2;
+        const mgCrescentOutwardSpeed = 2.6;
         const mgCrescentGravity = 1.0;
-        const mgCrescentMinDuration = 0.3;
-        const mgCrescentMaxDuration = 0.55;
+        const mgCrescentMinDuration = 0.5;  // ※強化：持続時間を延長
+        const mgCrescentMaxDuration = 0.95; // ※強化：持続時間を延長
 
         const mgCrescentColorWhite = new THREE.Color(0xffffff);
         const mgCrescentColorYellow = new THREE.Color(0xffe200);
@@ -1095,7 +1095,7 @@
 
 
         // ============================================================
-        // mg attack1 の三日月エフェクト
+        // mg attack1 の三日月エフェクト（強化版）
         //
         // attack1再生中、20フレーム目に到達した瞬間に1回だけ発生させる。
         // mgの前方を中心に、白〜黄色の細長いブロックを弧状（三日月状）に
