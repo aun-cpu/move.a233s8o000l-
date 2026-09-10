@@ -341,7 +341,7 @@
 
 
         // ============================================================
-        // mg.glb 移動設定
+        // mg.glb 移動・攻撃設定
         // ============================================================
 
         const mgMoveSpeed = 1.0;
@@ -350,7 +350,15 @@
 
         const mgRotationSpeed = 5.0;
 
+        // ct1からこの距離以内に入ったらattack1
+        const mgAttackDistance = 3.0;
+
         let mgIsMoving = false;
+
+        let mgIsAttacking = false;
+
+        // 3以内に入った瞬間を一度だけ検出するためのフラグ
+        let mgAttackTriggered = false;
 
 
         const mgMoveDirection =
@@ -688,6 +696,37 @@
 
                                     }
 
+
+                                    // ====================================================
+                                    // attack1を検出
+                                    // ====================================================
+
+                                    if (
+                                        animationName ===
+                                        'attack1'
+                                    ) {
+
+                                        mgActions.attack1 =
+                                            action;
+
+
+                                        action.setLoop(
+                                            THREE.LoopOnce,
+                                            1
+                                        );
+
+
+                                        action.clampWhenFinished =
+                                            true;
+
+
+                                        console.info(
+                                            '[mg] attack1アニメーションを検出:',
+                                            clip.name
+                                        );
+
+                                    }
+
                                 }
                             );
 
@@ -695,6 +734,78 @@
                             console.info(
                                 '[mg] アニメーション数:',
                                 mgGltf.animations.length
+                            );
+
+
+                            if (
+                                !mgActions.attack1
+                            ) {
+
+                                console.warn(
+                                    '[mg] attack1アニメーションが見つかりません。'
+                                );
+
+                            }
+
+
+                            // ====================================================
+                            // mg attack1終了イベント
+                            // ====================================================
+
+                            mgMixer.addEventListener(
+                                'finished',
+                                function (event) {
+
+                                    if (
+                                        event.action ===
+                                        mgActions.attack1
+                                    ) {
+
+                                        mgIsAttacking =
+                                            false;
+
+                                        // 攻撃終了時点で3以内なら
+                                        // attack1を再発動しない
+                                        if (
+                                            mgModel &&
+                                            targetModel
+                                        ) {
+
+                                            const dx =
+                                                targetModel.position.x -
+                                                mgModel.position.x;
+
+                                            const dz =
+                                                targetModel.position.z -
+                                                mgModel.position.z;
+
+                                            const distance =
+                                                Math.hypot(
+                                                    dx,
+                                                    dz
+                                                );
+
+
+                                            if (
+                                                distance >
+                                                mgAttackDistance
+                                            ) {
+
+                                                mgAttackTriggered =
+                                                    false;
+
+                                            }
+
+                                        }
+
+
+                                        console.info(
+                                            '[mg] attack1終了'
+                                        );
+
+                                    }
+
+                                }
                             );
 
                         } else {
@@ -1027,6 +1138,79 @@
 
 
         // ============================================================
+        // mg attack1
+        // ============================================================
+
+        function playMgAttack1() {
+
+            if (
+                !mgMixer ||
+                !mgActions.attack1
+            ) {
+
+                console.warn(
+                    '[mg] attack1を再生できません。'
+                );
+
+                return;
+
+            }
+
+
+            if (mgIsAttacking) return;
+
+
+            mgIsAttacking =
+                true;
+
+
+            mgIsMoving =
+                false;
+
+
+            // walk等を停止
+            if (currentMgAction) {
+
+                currentMgAction.fadeOut(
+                    0.1
+                );
+
+            }
+
+
+            const attackAction =
+                mgActions.attack1;
+
+
+            attackAction
+                .reset()
+                .setLoop(
+                    THREE.LoopOnce,
+                    1
+                );
+
+
+            attackAction.clampWhenFinished =
+                true;
+
+
+            attackAction
+                .fadeIn(0.1)
+                .play();
+
+
+            currentMgAction =
+                attackAction;
+
+
+            console.info(
+                '[mg] attack1再生'
+            );
+
+        }
+
+
+        // ============================================================
         // mg → ct1 移動
         // ============================================================
 
@@ -1058,7 +1242,54 @@
                 mgMoveDirection.length();
 
 
+            // ========================================================
+            // 3以内に入ったらattack1
+            // ========================================================
+
+            if (
+                distance <=
+                mgAttackDistance
+            ) {
+
+                // 3以内に入った瞬間だけ発動
+                if (
+                    !mgAttackTriggered &&
+                    !mgIsAttacking
+                ) {
+
+                    mgAttackTriggered =
+                        true;
+
+                    playMgAttack1();
+
+                }
+
+
+                // 攻撃中は移動しない
+                if (
+                    mgIsAttacking
+                ) {
+
+                    mgIsMoving =
+                        false;
+
+                    return;
+
+                }
+
+            } else {
+
+                // 3以上離れたら、次回侵入時に再び攻撃可能
+                mgAttackTriggered =
+                    false;
+
+            }
+
+
+            // ========================================================
             // ct1に十分近づいたら停止
+            // ========================================================
+
             if (
                 distance <=
                 mgStopDistance
@@ -3406,7 +3637,7 @@
             );
 
 
-            // mg → ct1移動
+            // mg → ct1移動・attack1判定
             updateMgMovement(
                 delta
             );
