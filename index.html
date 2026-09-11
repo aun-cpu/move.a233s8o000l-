@@ -347,7 +347,7 @@
         const mgHitboxHeight = ct1ApproxHeight * mgHitboxHeightMultiplier; // mgの当たり判定の高さ
         const mgBodyRadius = ct1MinDistanceToMg;           // mg本体の水平方向の当たり判定半径 ※ct1が近づける限界にちょうど重なるようにする
         const ct1AttackHitboxRadius = 2.3;                 // ct1のジャンプ攻撃の当たり判定半径 ※命中しない問題を解消するためさらに拡大：1.8 → 2.6
-        const ct1AttackForwardOffset = 0.3;                // ct1の真下から前方へずらす距離 ※向きがずれても届くよう拡大：0.8 → 1.3
+        const ct1AttackForwardOffset = 0.1;                // ct1の真下から前方へずらす距離 ※向きがずれても届くよう拡大：0.8 → 1.3
         const ct1AttackVerticalMargin = 1.0;               // 判定の上下に持たせる余裕（判定漏れ防止）
         const jumpAttackFrame = 22;                        // 攻撃判定を発生させるジャンプアニメのフレーム ※22フレーム目のみに限定
         const mgWarpDistance = 8;                        // ヒット時、mgをct1からどれだけ離れた位置へワープさせるか
