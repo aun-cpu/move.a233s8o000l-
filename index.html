@@ -277,8 +277,12 @@
         const mgMoveSpeed = 1.0;
         const mgRotationSpeed = 5.0;
 
-        // ct1からこの距離までしか近づかない（＝attack1を発動する距離でもある）
+        // ct1からこの距離までしか近づかない（＝mgが近づける範囲）
         const mgAttackDistance = 3.0; // ※ct1に近づける限界を近づけた（3.0 → 2.0）
+
+        // mgが攻撃（attack1/attack2）を開始する範囲
+        // ※近づける範囲（mgAttackDistance）はそのままに、攻撃を開始する範囲だけを広げた
+        const mgAttackTriggerDistance = 5.5;
 
         let mgIsMoving = false;
         let mgIsAttacking = false;
@@ -414,6 +418,28 @@
         const knockbackFlashDuration = 0.15;
         const knockbackFlashRadius = 0.4;
         const knockbackFlashMaxScale = 3.0;
+
+
+        // ------------------------------------------------------------
+        // attack2がヒットした際の衝撃波エフェクト（強化版・大きめ）
+        // ------------------------------------------------------------
+        const mgAttack2ShockwaveFlashColor = 0xffe200;
+        const mgAttack2ShockwaveFlashDuration = 0.22;
+        const mgAttack2ShockwaveFlashRadius = 0.9;
+        const mgAttack2ShockwaveFlashMaxScale = 6.0;
+
+        const mgAttack2ShockwaveBurstCount = 60;
+        const mgAttack2ShockwaveBurstMinSize = 0.16;
+        const mgAttack2ShockwaveBurstMaxSize = 0.55;
+        const mgAttack2ShockwaveBurstMinSpeed = 3.0;
+        const mgAttack2ShockwaveBurstMaxSpeed = 8.5;
+        const mgAttack2ShockwaveBurstMinDuration = 0.5;
+        const mgAttack2ShockwaveBurstMaxDuration = 1.05;
+        const mgAttack2ShockwaveBurstGravity = 3.0;
+        const mgAttack2ShockwaveBurstSpread = 0.35;
+
+        const mgAttack2ShockwaveColorA = new THREE.Color(0xffe200);
+        const mgAttack2ShockwaveColorB = new THREE.Color(0xff7a00);
 
 
         // ------------------------------------------------------------
@@ -933,10 +959,12 @@
         // ============================================================
         // mg → ct1 への接近・停止・attack1/attack2発動
         //
-        // ct1との距離が mgAttackDistance（3.0）より大きい間は歩いて
-        // 近づき、3.0以下になったところで停止して攻撃を発動する。
-        // 3.0より内側へは絶対に入らないよう、移動量を境界までに
-        // クランプする。
+        // ct1との距離が mgAttackTriggerDistance（攻撃を開始する範囲）以下に
+        // なった瞬間に、その場でattack1またはattack2を発動する（＝攻撃発動
+        // のためにmgAttackDistanceまで近づく必要はない）。
+        //
+        // 一方、攻撃が発動していない間は mgAttackDistance（近づける範囲）
+        // より内側には絶対に入らないよう、移動量を境界までにクランプする。
         //
         // その際、ct1JumpedBeforeMgAttackフラグが立っていれば
         // （＝mgの攻撃がまだ発動していない間にct1がjumpしていれば）
@@ -954,51 +982,54 @@
             const distance = mgMoveDirection.length();
 
             // --------------------------------------------------
-            // 半径3以内：これ以上近づかず、attack1またはattack2を発動する
+            // 攻撃を開始する範囲（mgAttackTriggerDistance）以内に入った
+            // 瞬間、attack1またはattack2を発動する
+            // --------------------------------------------------
+            if (!mgAttackTriggered && !mgIsAttacking && distance <= mgAttackTriggerDistance) {
+
+                mgAttackTriggered = true;
+
+                if (ct1JumpedBeforeMgAttack) {
+
+                    ct1JumpedBeforeMgAttack = false;
+                    playMgAttack2();
+
+                } else {
+
+                    playMgAttack1();
+
+                }
+
+            }
+
+            // 攻撃アニメーション再生中は移動しない
+            if (mgIsAttacking) {
+                mgIsMoving = false;
+                return;
+            }
+
+            // --------------------------------------------------
+            // 近づける範囲（mgAttackDistance）以内：これ以上近づかない
             // --------------------------------------------------
             if (distance <= mgAttackDistance) {
 
                 mgIsMoving = false;
-
-                if (!mgAttackTriggered && !mgIsAttacking) {
-
-                    mgAttackTriggered = true;
-
-                    if (ct1JumpedBeforeMgAttack) {
-
-                        ct1JumpedBeforeMgAttack = false;
-                        playMgAttack2();
-
-                    } else {
-
-                        playMgAttack1();
-
-                    }
-
-                }
-
-                if (!mgIsAttacking) {
-                    stopMgAnimation();
-                }
+                stopMgAnimation();
 
                 return;
 
             }
 
-            // 半径3より外に出たら、次に3以内へ入った時にまた発動できるようにする
-            mgAttackTriggered = false;
-
-            // 攻撃アニメーション再生中は（万一距離が開いても）移動しない
-            if (mgIsAttacking) {
-                mgIsMoving = false;
-                return;
+            // 攻撃を開始する範囲より外に出たら、再びトリガーできるようにする
+            if (distance > mgAttackTriggerDistance) {
+                mgAttackTriggered = false;
             }
 
             mgIsMoving = true;
 
             mgMoveDirection.normalize();
 
-            // 境界（半径3の円）を超えて内側へ入らないよう移動量をクランプ
+            // 境界（mgAttackDistanceの円）を超えて内側へ入らないよう移動量をクランプ
             const allowedMoveAmount = Math.max(distance - mgAttackDistance, 0);
             const moveAmount = mgMoveSpeed * delta;
 
@@ -1114,17 +1145,50 @@
                 // 判定点からct1へ向かう方向へノックバックさせる
                 applyCt1Knockback(dx, dz);
 
-                // 当たり判定付近に黄色い光を一瞬出す
                 const flashPosition = mgAttackHitPosition.clone();
                 flashPosition.y += 1.0;
 
-                spawnFlashParticle(flashPosition, {
-                    radius: knockbackFlashRadius,
-                    duration: knockbackFlashDuration,
-                    maxScale: knockbackFlashMaxScale,
-                    startOpacity: 1.0,
-                    color: knockbackFlashColor
-                });
+                if (currentMgAttackType === 'attack2') {
+
+                    // attack2は大きめの衝撃波エフェクトを出す
+                    spawnFlashParticle(flashPosition, {
+                        radius: mgAttack2ShockwaveFlashRadius,
+                        duration: mgAttack2ShockwaveFlashDuration,
+                        maxScale: mgAttack2ShockwaveFlashMaxScale,
+                        startOpacity: 1.0,
+                        color: mgAttack2ShockwaveFlashColor
+                    });
+
+                    spawnCubeBurst(flashPosition, {
+                        count: mgAttack2ShockwaveBurstCount,
+                        minSize: mgAttack2ShockwaveBurstMinSize,
+                        maxSize: mgAttack2ShockwaveBurstMaxSize,
+                        minSpeed: mgAttack2ShockwaveBurstMinSpeed,
+                        maxSpeed: mgAttack2ShockwaveBurstMaxSpeed,
+                        minDuration: mgAttack2ShockwaveBurstMinDuration,
+                        maxDuration: mgAttack2ShockwaveBurstMaxDuration,
+                        gravity: mgAttack2ShockwaveBurstGravity,
+                        colorA: mgAttack2ShockwaveColorA,
+                        colorB: mgAttack2ShockwaveColorB,
+                        elevationMin: -0.1,
+                        elevationMax: 1.0,
+                        spawnSpread: mgAttack2ShockwaveBurstSpread
+                    });
+
+                    triggerCameraShake();
+
+                } else {
+
+                    // attack1は既存の黄色い光のみ
+                    spawnFlashParticle(flashPosition, {
+                        radius: knockbackFlashRadius,
+                        duration: knockbackFlashDuration,
+                        maxScale: knockbackFlashMaxScale,
+                        startOpacity: 1.0,
+                        color: knockbackFlashColor
+                    });
+
+                }
 
             }
 
