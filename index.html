@@ -71,18 +71,19 @@
             transform: translate(0px, 0px);
         }
 
+        /* ※ジャンプボタンはダッシュボタンと同サイズにし、ダッシュボタンの真上に配置 */
         #jump-button {
             position: absolute;
-            right: 35px;
-            bottom: 75px;
-            width: 90px;
-            height: 90px;
+            right: 20px;
+            bottom: 81px;
+            width: 56px;
+            height: 56px;
             z-index: 20;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.18);
             border: 2px solid rgba(255, 255, 255, 0.4);
             color: rgba(255, 255, 255, 0.9);
-            font-size: 42px;
+            font-size: 24px;
             font-weight: bold;
             display: flex;
             align-items: center;
@@ -125,6 +126,34 @@
             background: rgba(255, 255, 255, 0.35);
             transform: scale(0.94);
         }
+
+        /* ※ATボタン：ジャンプ／ダッシュボタンの左側に、旧ジャンプボタンと同サイズで配置 */
+        #at-button {
+            position: absolute;
+            right: 91px;
+            bottom: 31px;
+            width: 90px;
+            height: 90px;
+            z-index: 20;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.18);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 28px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #at-button:active {
+            background: rgba(255, 255, 255, 0.35);
+            transform: scale(0.94);
+        }
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -143,6 +172,8 @@
     <div id="jump-button">↑</div>
 
     <div id="dash-button">⏫</div>
+
+    <div id="at-button">AT</div>
 
     <script>
 
@@ -244,6 +275,16 @@
         const animationFPS = 30;
         const shockwaveFrame = 22;
         let jumpShockwaveSpawned = false;
+
+        // ------------------------------------------------------------
+        // ct1のAT（at1）攻撃
+        // ------------------------------------------------------------
+        let isAttacking1 = false;
+        let at1FrameCount = 0;
+        let at1HitApplied = false;
+
+        const at1HitFrameStart = 11;
+        const at1HitFrameEnd = 15;
 
         const clock = new THREE.Clock();
 
@@ -752,6 +793,20 @@
                             action.setLoop(THREE.LoopOnce, 1);
                             action.clampWhenFinished = true;
 
+                        } else if (animationName === 'at1') {
+
+                            // ※ATボタンで再生する攻撃モーション
+                            actions.at1 = action;
+                            action.setLoop(THREE.LoopOnce, 1);
+                            action.clampWhenFinished = true;
+
+                        } else if (animationName === 'hit') {
+
+                            // ※ノックバック時に再生するモーション
+                            actions.hit = action;
+                            action.setLoop(THREE.LoopOnce, 1);
+                            action.clampWhenFinished = true;
+
                         } else {
 
                             action.setLoop(THREE.LoopRepeat, Infinity);
@@ -768,6 +823,11 @@
 
                         if (event.action === actions.jump && isJumping) {
                             isJumping = false;
+                            updateMovementAnimation();
+                        }
+
+                        if (event.action === actions.at1 && isAttacking1) {
+                            isAttacking1 = false;
                             updateMovementAnimation();
                         }
 
@@ -1167,7 +1227,7 @@
                 knockDir.normalize();
             }
 
-            // ノックバック発生時は、進行中の操作（ジャンプ・ダッシュ・移動）を
+            // ノックバック発生時は、進行中の操作（ジャンプ・ダッシュ・AT攻撃・移動）を
             // 全て強制的に中断する
             if (isDashing) {
                 isDashing = false;
@@ -1178,7 +1238,16 @@
                 isJumping = false;
             }
 
-            setAction('idle');
+            if (isAttacking1) {
+                isAttacking1 = false;
+            }
+
+            // ※ノックバック時はhitモーションを再生する（存在しない場合はidleにフォールバック）
+            if (actions.hit) {
+                setAction('hit');
+            } else {
+                setAction('idle');
+            }
 
             ct1KnockbackVelocity.copy(knockDir).multiplyScalar(ct1KnockbackStrength);
             ct1KnockbackElapsed = 0;
@@ -1208,6 +1277,9 @@
             if (ct1KnockbackElapsed >= ct1KnockbackDuration) {
                 isCt1Knockback = false;
                 ct1KnockbackVelocity.set(0, 0, 0);
+
+                // ※hitモーションが終わったら、入力状態に応じて通常のモーションへ戻す
+                updateMovementAnimation();
             }
 
         }
@@ -1249,6 +1321,56 @@
             if (relativeHeight < -ct1AttackVerticalMargin || relativeHeight > mgHitboxHeight + ct1AttackVerticalMargin) return;
 
             jumpAttackHitApplied = true;
+
+            spawnJumpHitImpactEffect(attackPosition);
+
+            warpMgAwayFromCt1();
+
+        }
+
+
+        // ============================================================
+        // ct1のAT（at1）攻撃 判定 → mgヒット時のワープ
+        //
+        // ATボタンでat1アニメーションを再生し、11〜15フレームの間、
+        // ct1の前方に置いた判定とmgの当たり判定が重なっているかを
+        // 毎フレームチェックする。命中すれば、そのAT攻撃につき1回だけ
+        // 「当たった感」の演出を出し、mgをct1から少し離れた場所へ
+        // ワープさせる（ジャンプ攻撃命中時と同じ演出・処理を利用）。
+        // ============================================================
+        function updateCt1At1Hit() {
+
+            if (!mgModel || !targetModel) return;
+            if (!isAttacking1) return;
+            if (at1HitApplied) return;
+
+            const hitFrameActive = at1FrameCount >= at1HitFrameStart && at1FrameCount <= at1HitFrameEnd;
+
+            if (!hitFrameActive) return;
+
+            const forward = new THREE.Vector3(0, 0, 1);
+            forward.applyQuaternion(targetModel.quaternion);
+            forward.y = 0;
+
+            if (forward.lengthSq() > 0) {
+                forward.normalize();
+            }
+
+            const attackPosition = targetModel.position.clone();
+            attackPosition.y += targetHeightOffset * 0.5;
+            attackPosition.addScaledVector(forward, ct1AttackForwardOffset);
+
+            const dx = attackPosition.x - mgModel.position.x;
+            const dz = attackPosition.z - mgModel.position.z;
+            const horizontalDistance = Math.hypot(dx, dz);
+
+            if (horizontalDistance > ct1AttackHitboxRadius + mgBodyRadius) return;
+
+            const relativeHeight = attackPosition.y - mgModel.position.y;
+
+            if (relativeHeight < -ct1AttackVerticalMargin || relativeHeight > mgHitboxHeight + ct1AttackVerticalMargin) return;
+
+            at1HitApplied = true;
 
             spawnJumpHitImpactEffect(attackPosition);
 
@@ -1901,6 +2023,7 @@
             if (!targetModel) return;
             if (isDashing || isJumping) return;
             if (isCt1Knockback) return; // ノックバック中はダッシュ不可
+            if (isAttacking1) return;   // AT攻撃中はダッシュ不可
 
             const forward = new THREE.Vector3(0, 0, 1);
             forward.applyQuaternion(targetModel.quaternion);
@@ -2005,6 +2128,7 @@
             if (isJumping) return;
             if (isDashing) return;
             if (isCt1Knockback) return; // ノックバック中はジャンプ不可
+            if (isAttacking1) return;   // AT攻撃中はジャンプ不可
 
             // ※mgとの距離がmgJumpAttack2TriggerDistance以内で、かつ
             // mgがまだ攻撃（attack1）を開始していない場合、その瞬間にattack2を発動する
@@ -2039,6 +2163,34 @@
         }
 
 
+        // ============================================================
+        // AT攻撃（at1）
+        // ============================================================
+        function playAt1() {
+
+            if (!mixer || !actions.at1) return;
+            if (isJumping) return;
+            if (isDashing) return;
+            if (isCt1Knockback) return; // ノックバック中はAT攻撃不可
+            if (isAttacking1) return;
+
+            isAttacking1 = true;
+            at1FrameCount = 0;
+            at1HitApplied = false;
+
+            const at1Action = actions.at1;
+
+            if (currentAction) currentAction.fadeOut(0.1);
+
+            at1Action.reset().setLoop(THREE.LoopOnce, 1);
+            at1Action.clampWhenFinished = true;
+            at1Action.fadeIn(0.1).play();
+
+            currentAction = at1Action;
+
+        }
+
+
         const jumpButton = document.getElementById('jump-button');
 
         jumpButton.addEventListener('pointerdown', (e) => {
@@ -2054,6 +2206,15 @@
             e.preventDefault();
             e.stopPropagation();
             dashForward();
+        }, { passive: false });
+
+
+        const atButton = document.getElementById('at-button');
+
+        atButton.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            playAt1();
         }, { passive: false });
 
 
@@ -2223,6 +2384,7 @@
             if (e.target.closest('#joystick-container')) return;
             if (e.target.closest('#jump-button')) return;
             if (e.target.closest('#dash-button')) return;
+            if (e.target.closest('#at-button')) return;
             if (isCameraDragging) return;
 
             if (e.clientX >= window.innerWidth / 2) {
@@ -2315,6 +2477,7 @@
             if (!targetModel) return;
             if (isDashing) return;
             if (isCt1Knockback) return; // ノックバック中は移動操作を無効化
+            if (isAttacking1) return;   // AT攻撃中は移動操作を無効化
 
             let moveX = joystickX;
             let moveY = joystickY;
@@ -2450,6 +2613,15 @@
                         isJumping = false;
                         updateMovementAnimation();
                     }
+
+                }
+
+                if (isAttacking1 && actions.at1) {
+
+                    at1FrameCount = Math.floor(actions.at1.time * animationFPS);
+
+                    // 11〜15フレームの間、mgへの攻撃判定をチェック
+                    updateCt1At1Hit();
 
                 }
 
