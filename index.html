@@ -275,7 +275,7 @@
         const mgRotationSpeed = 5.0;
 
         // ct1からこの距離までしか近づかない（＝attack1を発動する距離でもある）
-        const mgAttackDistance = 3.0;
+        const mgAttackDistance = 2.0; // ※ct1に近づける限界を近づけた（3.0 → 2.0）
 
         let mgIsMoving = false;
         let mgIsAttacking = false;
@@ -349,10 +349,30 @@
         const ct1AttackHitboxRadius = 2.6;                 // ct1のジャンプ攻撃の当たり判定半径 ※命中しない問題を解消するためさらに拡大：1.8 → 2.6
         const ct1AttackForwardOffset = 1.3;                // ct1の真下から前方へずらす距離 ※向きがずれても届くよう拡大：0.8 → 1.3
         const ct1AttackVerticalMargin = 1.0;               // 判定の上下に持たせる余裕（判定漏れ防止）
-        const jumpAttackFrame = 18;                        // 攻撃判定を発生させるジャンプアニメのフレーム ※早めて猶予を確保：22 → 18
+        const jumpAttackFrame = 22;                        // 攻撃判定を発生させるジャンプアニメのフレーム ※22フレーム目のみに限定
         const mgWarpDistance = 4.5;                        // ヒット時、mgをct1からどれだけ離れた位置へワープさせるか
 
         let jumpAttackHitApplied = false;
+
+        // ------------------------------------------------------------
+        // ct1のジャンプ攻撃がmgに命中した際の「当たった感」パーティクル
+        // mgの当たり判定（半径・高さ）を参考に、当たった位置に発生させる
+        // ------------------------------------------------------------
+        const jumpHitImpactFlashColor = 0xffffff;
+        const jumpHitImpactFlashDuration = 0.15;
+        const jumpHitImpactFlashRadius = 0.5;
+        const jumpHitImpactFlashMaxScale = 3.5;
+
+        const jumpHitImpactBurstCount = 45;
+        const jumpHitImpactMinSize = 0.12;
+        const jumpHitImpactMaxSize = 0.34;
+        const jumpHitImpactMinSpeed = 2.5;
+        const jumpHitImpactMaxSpeed = 6.5;
+        const jumpHitImpactMinDuration = 0.4;
+        const jumpHitImpactMaxDuration = 0.8;
+        const jumpHitImpactGravity = 3.0;
+        const jumpHitImpactColorA = new THREE.Color(0xffffff);
+        const jumpHitImpactColorB = new THREE.Color(0xffe066);
 
 
         // ------------------------------------------------------------
@@ -532,6 +552,10 @@
                                 material.roughness = 0.95;
                                 material.envMapIntensity = 0.08;
 
+                                // ※輪郭を曖昧にするため半透明にする
+                                material.transparent = true;
+                                material.opacity = 0.8;
+
                                 if (material.map) {
                                     material.map.encoding = THREE.sRGBEncoding;
                                     material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -611,18 +635,8 @@
 
                                     mgIsAttacking = false;
 
-                                    // 攻撃終了時点で3より外にいれば、次の接近時にまた発動できるようにする
-                                    if (mgModel && targetModel) {
-
-                                        const dx = targetModel.position.x - mgModel.position.x;
-                                        const dz = targetModel.position.z - mgModel.position.z;
-                                        const distance = Math.hypot(dx, dz);
-
-                                        if (distance > mgAttackDistance) {
-                                            mgAttackTriggered = false;
-                                        }
-
-                                    }
+                                    // ※何度でも繰り返し発動できるよう、距離に関わらず毎回トリガーをリセットする
+                                    mgAttackTriggered = false;
 
                                     console.info('[mg] attack1終了');
 
@@ -1046,7 +1060,7 @@
             if (!mgModel || !targetModel) return;
             if (!isJumping) return;
             if (jumpAttackHitApplied) return;
-            if (jumpFrameCount < jumpAttackFrame) return;
+            if (jumpFrameCount !== jumpAttackFrame) return; // ※22フレーム目だけで判定する
 
             // ct1の真下（現在の高さ）から少し前寄りの位置を攻撃判定の発生源とする
             const forward = new THREE.Vector3(0, 0, 1);
@@ -1075,7 +1089,66 @@
 
             jumpAttackHitApplied = true;
 
+            spawnJumpHitImpactEffect(attackPosition);
+
             warpMgAwayFromCt1();
+
+        }
+
+
+        // ============================================================
+        // ct1のジャンプ攻撃がmgに命中した際の「当たった感」演出
+        // mgの当たり判定（半径・高さ）を参考に、当たり判定の表面付近に発生させる
+        // ============================================================
+        function spawnJumpHitImpactEffect(attackPosition) {
+
+            if (!mgModel) return;
+
+            const impactDirection = new THREE.Vector3(
+                attackPosition.x - mgModel.position.x,
+                0,
+                attackPosition.z - mgModel.position.z
+            );
+
+            if (impactDirection.lengthSq() > 0.0001) {
+                impactDirection.normalize();
+            } else {
+                impactDirection.set(0, 0, 1);
+            }
+
+            // mgの当たり判定（半径・高さ）を参考に、その表面上に衝突位置を作る
+            const impactPosition = mgModel.position.clone()
+                .addScaledVector(impactDirection, mgBodyRadius);
+
+            impactPosition.y = THREE.MathUtils.clamp(
+                attackPosition.y,
+                mgModel.position.y,
+                mgModel.position.y + mgHitboxHeight
+            );
+
+            spawnFlashParticle(impactPosition, {
+                radius: jumpHitImpactFlashRadius,
+                duration: jumpHitImpactFlashDuration,
+                maxScale: jumpHitImpactFlashMaxScale,
+                startOpacity: 1.0,
+                color: jumpHitImpactFlashColor
+            });
+
+            spawnCubeBurst(impactPosition, {
+                count: jumpHitImpactBurstCount,
+                minSize: jumpHitImpactMinSize,
+                maxSize: jumpHitImpactMaxSize,
+                minSpeed: jumpHitImpactMinSpeed,
+                maxSpeed: jumpHitImpactMaxSpeed,
+                minDuration: jumpHitImpactMinDuration,
+                maxDuration: jumpHitImpactMaxDuration,
+                gravity: jumpHitImpactGravity,
+                colorA: jumpHitImpactColorA,
+                colorB: jumpHitImpactColorB,
+                elevationMin: -0.1,
+                elevationMax: 1.0,
+                spawnSpread: 0.3
+            });
 
         }
 
