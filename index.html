@@ -250,6 +250,9 @@
     let at2FrameCount = 0;
     let at1HitApplied = false;
     let at2HitApplied = false;
+    // at1/at2の指定フレームで、ct1の現在の向きへ1だけ移動するためのフラグ
+    let at1ForwardStepApplied = false;
+    let at2ForwardStepApplied = false;
     const at1HitFrameStart = 11;
     const at1HitFrameEnd = 15;
     const at2HitFrame = 10;
@@ -261,6 +264,8 @@
     // ============================================================
     const maxMoveSpeed = 4.0;
     const jumpMoveSpeedFactor = 0.3;
+    const atAttackMoveSpeedFactor = jumpMoveSpeedFactor;
+    const atAttackForwardStepDistance = 1.0;
     const rotationSpeed = 10.0;
     const cameraTouchSensitivity = 0.005;
     // ============================================================
@@ -1244,6 +1249,22 @@
         );
         warpMgAwayFromCt1();
     }
+    function moveCt1ForwardAtAttackFrame(distance) {
+        if (!targetModel) return;
+
+        const forward = new THREE.Vector3(0, 0, 1);
+        forward.applyQuaternion(targetModel.quaternion);
+        forward.y = 0;
+
+        if (forward.lengthSq() > 0) {
+            forward.normalize();
+            targetModel.position.addScaledVector(
+                forward,
+                distance
+            );
+        }
+    }
+
     // ============================================================
     // ct1 AT攻撃ヒット判定
     // ============================================================
@@ -2486,6 +2507,8 @@
         at2FrameCount = 0;
         at1HitApplied = false;
         at2HitApplied = false;
+        at1ForwardStepApplied = false;
+        at2ForwardStepApplied = false;
 
         const at1Action =
             actions.at1;
@@ -2520,6 +2543,7 @@
         isAttacking2 = true;
         at2FrameCount = 0;
         at2HitApplied = false;
+        at2ForwardStepApplied = false;
 
         const at2Action =
             actions.at2;
@@ -2984,7 +3008,6 @@
         if (!targetModel) return;
         if (isDashing) return;
         if (isCt1Knockback) return;
-        if (isAttacking1 || isAttacking2) return;
         let moveX = joystickX;
         let moveY = joystickY;
         let currentSpeed = 0;
@@ -3024,11 +3047,11 @@
         }
         const isMoving =
             currentSpeed > 0;
-        if (isJumping) {
+        if (isJumping || isAttacking1 || isAttacking2) {
             currentSpeed *=
                 jumpMoveSpeedFactor;
         }
-        if (!isJumping) {
+        if (!isJumping && !isAttacking1 && !isAttacking2) {
             if (isMoving) {
                 if (actions.dash) {
                     setAction('dash');
@@ -3174,6 +3197,18 @@
                         actions.at1.time *
                         animationFPS
                     );
+
+                // at1の15フレーム目に、その時点でct1が向いている方向へ1進む。
+                if (
+                    !at1ForwardStepApplied &&
+                    at1FrameCount >= 15
+                ) {
+                    moveCt1ForwardAtAttackFrame(
+                        atAttackForwardStepDistance
+                    );
+                    at1ForwardStepApplied = true;
+                }
+
                 updateCt1At1Hit();
             }
 
@@ -3186,6 +3221,18 @@
                         actions.at2.time *
                         animationFPS
                     );
+
+                // at2の10フレーム目に、その時点でct1が向いている方向へ1進む。
+                if (
+                    !at2ForwardStepApplied &&
+                    at2FrameCount >= 10
+                ) {
+                    moveCt1ForwardAtAttackFrame(
+                        atAttackForwardStepDistance
+                    );
+                    at2ForwardStepApplied = true;
+                }
+
                 updateCt1At2Hit();
             }
         }
