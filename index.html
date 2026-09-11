@@ -357,198 +357,109 @@
 
 
     // ============================================================
-    // Root Motion
+    // AT専用ボーン移動
+    // ============================================================
+    //
+    // ボーンに基づく実移動は at1 / at2 のみ。
+    // 各ATでは「開始時の親Bone位置」と
+    // 「当たり判定フレームの親Bone位置」の2点だけを参照し、
+    // その差分を1回だけtargetModelへ反映する。
+    //
+    // jump / idle / dash / hit等ではボーン由来の移動を行わない。
     // ============================================================
 
-    let rootMotionInitialized = false;
+    let atBoneParent = null;
 
-    const rootMotionPreviousWorldPosition =
+    const atInitialParentWorldPosition =
         new THREE.Vector3();
 
-    const rootMotionCurrentWorldPosition =
+    const atHitParentWorldPosition =
         new THREE.Vector3();
 
-    const rootMotionWorldDelta =
+    const atMotionWorldDelta =
         new THREE.Vector3();
 
-    const rootMotionLocalDelta =
-        new THREE.Vector3();
-
-    const rootMotionParentWorldPosition =
-        new THREE.Vector3();
+    let at1MotionApplied = false;
+    let at2MotionApplied = false;
 
 
-    /*
-     * GLBの最上位ボーンを探す。
-     *
-     * traverseで最初に見つかったBoneではなく、
-     * 親Boneを持たない一番上のBoneをRoot Motion用にする。
-     */
-    function findTopMostBone(model) {
+    function getAtParentBone() {
 
-        let topBone = null;
+        if (!rootBone) {
+            return null;
+        }
 
-        model.traverse((child) => {
+        if (
+            rootBone.parent &&
+            rootBone.parent.isBone
+        ) {
+            return rootBone.parent;
+        }
 
-            if (!child.isBone) {
-                return;
-            }
-
-            let candidate = child;
-
-            while (
-                candidate.parent &&
-                candidate.parent.isBone
-            ) {
-                candidate =
-                    candidate.parent;
-            }
-
-            if (!topBone) {
-                topBone = candidate;
-            }
-        });
-
-        return topBone;
+        return null;
     }
 
 
-    /*
-     * Root Motionの基準位置を更新
-     */
-    function initializeRootMotion() {
+    function initializeAtBoneMotion() {
+
+        if (!targetModel) {
+            return;
+        }
+
+        atBoneParent =
+            getAtParentBone();
+
+        if (!atBoneParent) {
+            atInitialParentWorldPosition.set(
+                0,
+                0,
+                0
+            );
+            return;
+        }
+
+        targetModel.updateMatrixWorld(
+            true
+        );
+
+        atBoneParent.getWorldPosition(
+            atInitialParentWorldPosition
+        );
+    }
+
+
+    function applyAtBoneMotionAtHitFrame() {
 
         if (
             !targetModel ||
-            !rootBone
+            !atBoneParent
         ) {
             return;
         }
 
-        targetModel.updateMatrixWorld(true);
-
-        rootBone.getWorldPosition(
-            rootMotionPreviousWorldPosition
+        targetModel.updateMatrixWorld(
+            true
         );
 
-        rootMotionInitialized = true;
-    }
-
-
-    /*
-     * アニメーションによる
-     * Root Boneの水平移動を実際のモデル移動へ変換する。
-     *
-     * X/Zのみを移動対象とする。
-     * YはジャンプのRoot Bone処理を既存システムで行う。
-     */
-    function updateRootMotion() {
-
-        if (
-            !targetModel ||
-            !rootBone ||
-            !rootMotionInitialized
-        ) {
-            return;
-        }
-
-        targetModel.updateMatrixWorld(true);
-
-        rootBone.getWorldPosition(
-            rootMotionCurrentWorldPosition
+        atBoneParent.getWorldPosition(
+            atHitParentWorldPosition
         );
 
-        rootMotionWorldDelta.set(
-            rootMotionCurrentWorldPosition.x -
-                rootMotionPreviousWorldPosition.x,
-            0,
-            rootMotionCurrentWorldPosition.z -
-                rootMotionPreviousWorldPosition.z
-        );
+        atMotionWorldDelta
+            .copy(
+                atHitParentWorldPosition
+            )
+            .sub(
+                atInitialParentWorldPosition
+            );
 
-        if (
-            rootMotionWorldDelta.lengthSq() >
-            0.00000001
-        ) {
+        // ATのボーン移動は水平移動のみ。
+        atMotionWorldDelta.y = 0;
 
-            /*
-             * Root Boneがアニメーションによって
-             * 実際に動いた分だけモデル全体を移動。
-             */
-            targetModel.position.x +=
-                rootMotionWorldDelta.x;
-
-            targetModel.position.z +=
-                rootMotionWorldDelta.z;
-
-
-            /*
-             * モデルを移動しただけでは
-             * Root Boneの移動が二重になるため、
-             * Root Bone側から同じ水平移動量を除去する。
-             *
-             * 親Boneのローカル座標系へ変換して補正する。
-             */
-            if (rootBone.parent) {
-
-                rootMotionParentWorldPosition.copy(
-                    rootBone.position
-                );
-
-                const beforeWorld =
-                    rootBoneCurrentWorldPositionTemp;
-
-                beforeWorld.copy(
-                    rootMotionCurrentWorldPosition
-                );
-
-                const correctionWorld =
-                    rootMotionCorrectionWorld;
-
-                correctionWorld.set(
-                    -rootMotionWorldDelta.x,
-                    0,
-                    -rootMotionWorldDelta.z
-                );
-
-                const parent =
-                    rootBone.parent;
-
-                const parentQuaternion =
-                    rootMotionParentQuaternion;
-
-                parent.getWorldQuaternion(
-                    parentQuaternion
-                );
-
-                parentQuaternion.invert();
-
-                rootMotionLocalDelta
-                    .copy(correctionWorld)
-                    .applyQuaternion(
-                        parentQuaternion
-                    );
-
-                rootBone.position.add(
-                    rootMotionLocalDelta
-                );
-            }
-        }
-
-        rootBone.getWorldPosition(
-            rootMotionPreviousWorldPosition
+        targetModel.position.add(
+            atMotionWorldDelta
         );
     }
-
-
-    const rootBoneCurrentWorldPositionTemp =
-        new THREE.Vector3();
-
-    const rootMotionCorrectionWorld =
-        new THREE.Vector3();
-
-    const rootMotionParentQuaternion =
-        new THREE.Quaternion();
 
 
     // ============================================================
@@ -1726,7 +1637,7 @@
                 rootBoneRestY =
                     rootBoneWorldPosition.y;
 
-                initializeRootMotion();
+    
 
             }
 
@@ -1812,7 +1723,7 @@
             currentAction =
                 nextAction;
 
-            initializeRootMotion();
+
 
         }
 
@@ -4929,7 +4840,6 @@
             jumpAction;
 
 
-        initializeRootMotion();
 
     }
 
@@ -5021,8 +4931,10 @@
         currentAction =
             at1Action;
 
+        initializeAtBoneMotion();
+        at1MotionApplied = false;
 
-        initializeRootMotion();
+
 
     }
 
@@ -5121,8 +5033,10 @@
         currentAction =
             at2Action;
 
+        initializeAtBoneMotion();
+        at2MotionApplied = false;
 
-        initializeRootMotion();
+
 
     }
 
@@ -6329,33 +6243,12 @@
 
         if (mixer) {
 
-            /*
-             * アニメーション更新前のRoot Bone位置を
-             * Root Motion計算用に保持。
-             */
-            if (
-                rootBone &&
-                rootMotionInitialized
-            ) {
-
-                rootBone.getWorldPosition(
-                    rootMotionPreviousWorldPosition
-                );
-
-            }
-
+            // ボーン由来の実移動はAT1 / AT2のみ。
+            // 実際の移動は各ATの当たり判定フレームで1回だけ行う。
 
             mixer.update(
                 delta
             );
-
-
-            /*
-             * アニメーションによって
-             * Root Boneが水平移動した量を
-             * targetModelの実移動へ変換。
-             */
-            updateRootMotion();
 
 
             // ----------------------------------------------------
@@ -6430,6 +6323,14 @@
                     );
 
 
+                if (
+                    !at1MotionApplied &&
+                    at1FrameCount >= at1HitFrameStart
+                ) {
+                    applyAtBoneMotionAtHitFrame();
+                    at1MotionApplied = true;
+                }
+
                 updateCt1At1Hit();
 
             }
@@ -6453,6 +6354,14 @@
                         animationFPS
                     );
 
+
+                if (
+                    !at2MotionApplied &&
+                    at2FrameCount >= at2HitFrame
+                ) {
+                    applyAtBoneMotionAtHitFrame();
+                    at2MotionApplied = true;
+                }
 
                 updateCt1At2Hit();
 
