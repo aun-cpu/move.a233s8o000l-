@@ -245,10 +245,14 @@
     // ct1のAT（at1）攻撃
     // ------------------------------------------------------------
     let isAttacking1 = false;
+    let isAttacking2 = false;
     let at1FrameCount = 0;
+    let at2FrameCount = 0;
     let at1HitApplied = false;
+    let at2HitApplied = false;
     const at1HitFrameStart = 11;
     const at1HitFrameEnd = 15;
+    const at2HitFrame = 10;
     // ★ at1のみ1.5倍速
     const at1PlaybackSpeed = 1.5;
     const clock = new THREE.Clock();
@@ -672,6 +676,13 @@
                         action.setEffectiveTimeScale(
                             at1PlaybackSpeed
                         );
+                    } else if (animationName === 'at2') {
+                        actions.at2 = action;
+                        action.setLoop(
+                            THREE.LoopOnce,
+                            1
+                        );
+                        action.clampWhenFinished = true;
                     } else if (animationName === 'hit') {
                         actions.hit = action;
                         action.setLoop(
@@ -693,6 +704,11 @@
                         }
                     }
                 });
+                if (!actions.at2) {
+                    console.warn(
+                        '[ct1] at2アニメーションが見つかりません。'
+                    );
+                }
                 mixer.addEventListener(
                     'finished',
                     function (event) {
@@ -708,6 +724,13 @@
                             isAttacking1
                         ) {
                             isAttacking1 = false;
+                            updateMovementAnimation();
+                        }
+                        if (
+                            event.action === actions.at2 &&
+                            isAttacking2
+                        ) {
+                            isAttacking2 = false;
                             updateMovementAnimation();
                         }
                     }
@@ -1099,6 +1122,9 @@
         if (isAttacking1) {
             isAttacking1 = false;
         }
+        if (isAttacking2) {
+            isAttacking2 = false;
+        }
         if (actions.hit) {
             setAction('hit');
         } else {
@@ -1274,6 +1300,70 @@
             return;
         }
         at1HitApplied = true;
+        spawnJumpHitImpactEffect(
+            attackPosition
+        );
+        warpMgAwayFromCt1();
+    }
+    // ============================================================
+    // ct1 AT2攻撃ヒット判定
+    // ============================================================
+    function updateCt1At2Hit() {
+        if (!mgModel || !targetModel) return;
+        if (!isAttacking2) return;
+        if (at2HitApplied) return;
+        if (at2FrameCount !== at2HitFrame) return;
+
+        const forward =
+            new THREE.Vector3(0, 0, 1);
+        forward.applyQuaternion(
+            targetModel.quaternion
+        );
+        forward.y = 0;
+        if (forward.lengthSq() > 0) {
+            forward.normalize();
+        }
+
+        const attackPosition =
+            targetModel.position.clone();
+        attackPosition.y +=
+            targetHeightOffset * 0.5;
+        attackPosition.addScaledVector(
+            forward,
+            ct1AttackForwardOffset
+        );
+
+        const dx =
+            attackPosition.x -
+            mgModel.position.x;
+        const dz =
+            attackPosition.z -
+            mgModel.position.z;
+        const horizontalDistance =
+            Math.hypot(dx, dz);
+
+        if (
+            horizontalDistance >
+            ct1AttackHitboxRadius +
+            mgBodyRadius
+        ) {
+            return;
+        }
+
+        const relativeHeight =
+            attackPosition.y -
+            mgModel.position.y;
+        if (
+            relativeHeight <
+            -ct1AttackVerticalMargin ||
+            relativeHeight >
+            mgHitboxHeight +
+            ct1AttackVerticalMargin
+        ) {
+            return;
+        }
+
+        at2HitApplied = true;
         spawnJumpHitImpactEffect(
             attackPosition
         );
@@ -2205,7 +2295,7 @@
         if (!targetModel) return;
         if (isDashing || isJumping) return;
         if (isCt1Knockback) return;
-        if (isAttacking1) return;
+        if (isAttacking1 || isAttacking2) return;
         const forward =
             new THREE.Vector3(0, 0, 1);
         forward.applyQuaternion(
@@ -2378,10 +2468,25 @@
         if (isJumping) return;
         if (isDashing) return;
         if (isCt1Knockback) return;
-        if (isAttacking1) return;
+
+        // at1の15フレーム以降にATを押した場合はat2へつなぐ。
+        if (
+            isAttacking1 &&
+            at1FrameCount >= at1HitFrameEnd
+        ) {
+            playAt2();
+            return;
+        }
+
+        if (isAttacking1 || isAttacking2) return;
+
         isAttacking1 = true;
+        isAttacking2 = false;
         at1FrameCount = 0;
+        at2FrameCount = 0;
         at1HitApplied = false;
+        at2HitApplied = false;
+
         const at1Action =
             actions.at1;
         if (currentAction) {
@@ -2402,6 +2507,36 @@
             .fadeIn(0.1)
             .play();
         currentAction = at1Action;
+    }
+
+    function playAt2() {
+        if (!mixer || !actions.at2) return;
+        if (isJumping) return;
+        if (isDashing) return;
+        if (isCt1Knockback) return;
+        if (!isAttacking1) return;
+
+        isAttacking1 = false;
+        isAttacking2 = true;
+        at2FrameCount = 0;
+        at2HitApplied = false;
+
+        const at2Action =
+            actions.at2;
+        if (currentAction) {
+            currentAction.fadeOut(0.05);
+        }
+        at2Action
+            .reset()
+            .setLoop(
+                THREE.LoopOnce,
+                1
+            );
+        at2Action.clampWhenFinished = true;
+        at2Action
+            .fadeIn(0.05)
+            .play();
+        currentAction = at2Action;
     }
     // ============================================================
     // ボタン
@@ -2849,7 +2984,7 @@
         if (!targetModel) return;
         if (isDashing) return;
         if (isCt1Knockback) return;
-        if (isAttacking1) return;
+        if (isAttacking1 || isAttacking2) return;
         let moveX = joystickX;
         let moveY = joystickY;
         let currentSpeed = 0;
@@ -3040,6 +3175,18 @@
                         animationFPS
                     );
                 updateCt1At1Hit();
+            }
+
+            if (
+                isAttacking2 &&
+                actions.at2
+            ) {
+                at2FrameCount =
+                    Math.floor(
+                        actions.at2.time *
+                        animationFPS
+                    );
+                updateCt1At2Hit();
             }
         }
         // ========================================================
