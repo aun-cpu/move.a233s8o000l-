@@ -271,6 +271,9 @@
         let mgActions = {};
         let currentMgAction = null;
 
+        // ※現在mgが再生している攻撃モーションの種類（'attack1' | 'attack2' | null）
+        let currentMgAttackType = null;
+
         const mgMoveSpeed = 1.0;
         const mgRotationSpeed = 5.0;
 
@@ -284,11 +287,25 @@
         // （3より外に出るとfalseに戻り、再接近時にまた発動できる）
         let mgAttackTriggered = false;
 
+        // ※mgのattack1がまだ再生されていない間にct1がjumpを行ったかどうかのフラグ
+        // trueの状態でmgの攻撃が発動すると、attack1の代わりにattack2が再生される
+        let ct1JumpedBeforeMgAttack = false;
+
         const mgMoveDirection = new THREE.Vector3();
         const mgTargetPosition = new THREE.Vector3();
 
-        // attack1再生中のフレーム数（当たり判定・エフェクトのタイミング制御に使う）
+        // attack1 / attack2 再生中のフレーム数（当たり判定・エフェクトのタイミング制御に使う）
         let mgAttackFrameCount = 0;
+
+
+        // ------------------------------------------------------------
+        // mgの「左1」「右1」ボーンを常に固定角度にするための参照
+        // ------------------------------------------------------------
+        let mgLeftBone1 = null;
+        let mgRightBone1 = null;
+
+        const mgFixedBoneAngleLeft = THREE.MathUtils.degToRad(130);
+        const mgFixedBoneAngleRight = THREE.MathUtils.degToRad(-130);
 
 
         // ------------------------------------------------------------
@@ -298,21 +315,25 @@
 
 
         // ------------------------------------------------------------
-        // mg attack1 の当たり判定（mgの前方に置く円形の判定）と
+        // mg attack1 / attack2 の当たり判定（mgの前方に置く円形の判定）と
         // ct1側の当たり判定（ct1を中心とした円形の判定）
         //
         // attack1のアニメーション再生中、25フレーム目前後の短い間だけ
-        // 判定を有効にし、この2つの判定が重なった最初の瞬間にだけ
-        // ct1をノックバックさせる（1回のattack1につき1回だけ）。
+        // 判定を有効にし、attack2のアニメーション再生中は15フレーム目に
+        // 同じ判定を有効にする。この2つの判定が重なった最初の瞬間にだけ
+        // ct1をノックバックさせる（1回の攻撃につき1回だけ）。
         // ct1がダッシュ中（透明化中）は無敵扱いとし、判定自体を行わない。
         // ------------------------------------------------------------
         const mgAttackHitboxForwardOffset = 1.2; // mgの前方どれだけの位置に判定を置くか
         const mgAttackHitboxRadius = 1.3;        // mg側の判定の半径
         const ct1HitboxRadius = 0.6;             // ct1側の判定の半径
 
-        // 当たり判定を有効にするフレーム範囲（25フレーム目前後）
+        // attack1: 当たり判定を有効にするフレーム範囲（25フレーム目前後）
         const mgAttackHitFrameStart = 23;
         const mgAttackHitFrameEnd = 27;
+
+        // attack2: 当たり判定を有効にするフレーム（15フレーム目）
+        const mgAttack2HitFrame = 15;
 
         let mgAttackHitApplied = false;
 
@@ -531,6 +552,33 @@
                         mgModel = mgGltf.scene;
                         mgModel.scale.set(2.5, 2.5, 2.5);
 
+                        // ------------------------------------------------
+                        // 「左1」「右1」ボーンを検出（常に固定角度にするため）
+                        // ------------------------------------------------
+                        mgModel.traverse((child) => {
+
+                            if (!child.isBone) return;
+
+                            if (child.name === '左1') {
+                                mgLeftBone1 = child;
+                                console.info('[mg] 左1ボーンを検出:', child.name);
+                            }
+
+                            if (child.name === '右1') {
+                                mgRightBone1 = child;
+                                console.info('[mg] 右1ボーンを検出:', child.name);
+                            }
+
+                        });
+
+                        if (!mgLeftBone1) {
+                            console.warn('[mg] 左1ボーンが見つかりませんでした。');
+                        }
+
+                        if (!mgRightBone1) {
+                            console.warn('[mg] 右1ボーンが見つかりませんでした。');
+                        }
+
                         // mgのテクスチャがぼやけて薄く見えないよう、はっきりさせつつ
                         // 重くダークな色合いに調整する
                         mgModel.traverse((child) => {
@@ -622,23 +670,38 @@
 
                                 }
 
+                                if (animationName === 'attack2') {
+
+                                    mgActions.attack2 = action;
+                                    action.setLoop(THREE.LoopOnce, 1);
+                                    action.clampWhenFinished = true;
+
+                                    console.info('[mg] attack2アニメーションを検出:', clip.name);
+
+                                }
+
                             });
 
                             if (!mgActions.attack1) {
                                 console.warn('[mg] attack1アニメーションが見つかりません。');
                             }
 
-                            // attack1終了イベント
+                            if (!mgActions.attack2) {
+                                console.warn('[mg] attack2アニメーションが見つかりません。');
+                            }
+
+                            // attack1 / attack2 終了イベント
                             mgMixer.addEventListener('finished', function (event) {
 
-                                if (event.action === mgActions.attack1) {
+                                if (event.action === mgActions.attack1 || event.action === mgActions.attack2) {
 
                                     mgIsAttacking = false;
+                                    currentMgAttackType = null;
 
                                     // ※何度でも繰り返し発動できるよう、距離に関わらず毎回トリガーをリセットする
                                     mgAttackTriggered = false;
 
-                                    console.info('[mg] attack1終了');
+                                    console.info('[mg] 攻撃モーション終了');
 
                                 }
 
@@ -799,6 +862,7 @@
 
             mgIsAttacking = true;
             mgIsMoving = false;
+            currentMgAttackType = 'attack1';
 
             // 今回のattack1ではまだヒット処理・演出をしていない状態にリセット
             mgAttackHitApplied = false;
@@ -824,12 +888,59 @@
 
 
         // ============================================================
-        // mg → ct1 への接近・停止・attack1発動
+        // mg attack2 再生
+        //
+        // mgのattack1がまだ再生されていない間にct1がjumpを行った場合、
+        // mgの攻撃発動時にattack1の代わりにこちらが再生される。
+        // ============================================================
+        function playMgAttack2() {
+
+            if (!mgMixer || !mgActions.attack2) {
+                console.warn('[mg] attack2を再生できません。attack1で代用します。');
+                playMgAttack1();
+                return;
+            }
+
+            if (mgIsAttacking) return;
+
+            mgIsAttacking = true;
+            mgIsMoving = false;
+            currentMgAttackType = 'attack2';
+
+            // 今回のattack2ではまだヒット処理をしていない状態にリセット
+            mgAttackHitApplied = false;
+            mgCrescentSpawned = false;
+            mgAttackShakeSpawned = false;
+            mgAttackFrameCount = 0;
+
+            if (currentMgAction) {
+                currentMgAction.fadeOut(0.1);
+            }
+
+            const attackAction = mgActions.attack2;
+
+            attackAction.reset().setLoop(THREE.LoopOnce, 1);
+            attackAction.clampWhenFinished = true;
+            attackAction.fadeIn(0.1).play();
+
+            currentMgAction = attackAction;
+
+            console.info('[mg] attack2再生');
+
+        }
+
+
+        // ============================================================
+        // mg → ct1 への接近・停止・attack1/attack2発動
         //
         // ct1との距離が mgAttackDistance（3.0）より大きい間は歩いて
-        // 近づき、3.0以下になったところで停止してattack1を発動する。
+        // 近づき、3.0以下になったところで停止して攻撃を発動する。
         // 3.0より内側へは絶対に入らないよう、移動量を境界までに
         // クランプする。
+        //
+        // その際、ct1JumpedBeforeMgAttackフラグが立っていれば
+        // （＝mgの攻撃がまだ発動していない間にct1がjumpしていれば）
+        // attack1の代わりにattack2を再生する。
         // ============================================================
         function updateMgMovement(delta) {
 
@@ -843,15 +954,27 @@
             const distance = mgMoveDirection.length();
 
             // --------------------------------------------------
-            // 半径3以内：これ以上近づかず、attack1を発動する
+            // 半径3以内：これ以上近づかず、attack1またはattack2を発動する
             // --------------------------------------------------
             if (distance <= mgAttackDistance) {
 
                 mgIsMoving = false;
 
                 if (!mgAttackTriggered && !mgIsAttacking) {
+
                     mgAttackTriggered = true;
-                    playMgAttack1();
+
+                    if (ct1JumpedBeforeMgAttack) {
+
+                        ct1JumpedBeforeMgAttack = false;
+                        playMgAttack2();
+
+                    } else {
+
+                        playMgAttack1();
+
+                    }
+
                 }
 
                 if (!mgIsAttacking) {
@@ -935,13 +1058,13 @@
 
 
         // ============================================================
-        // mg attack1 の当たり判定 → ct1ノックバック
+        // mg attack1 / attack2 の当たり判定 → ct1ノックバック
         //
-        // attack1再生中、25フレーム目前後の短い間だけ、mgの前方に
-        // 置いた円形の判定と、ct1を中心とした円形の判定が重なって
-        // いるかをチェックする。重なっていれば、そのattack1につき
-        // 1回だけct1をノックバックさせ、当たり判定付近に黄色い光を
-        // 一瞬出す。
+        // attack1再生中は25フレーム目前後の短い間だけ、attack2再生中は
+        // 15フレーム目に、mgの前方に置いた円形の判定と、ct1を中心とした
+        // 円形の判定が重なっているかをチェックする。重なっていれば、
+        // その攻撃につき1回だけct1をノックバックさせ、当たり判定付近に
+        // 黄色い光を一瞬出す。
         // ct1がダッシュ中（本体が非表示＝透明化中）は無敵として判定しない。
         // ============================================================
         function updateMgAttackHit(delta) {
@@ -950,8 +1073,21 @@
             if (!mgIsAttacking) return;
             if (mgAttackHitApplied) return;
 
-            // 25フレーム目前後の短い区間のみ判定を有効にする
-            if (mgAttackFrameCount < mgAttackHitFrameStart || mgAttackFrameCount > mgAttackHitFrameEnd) return;
+            let hitFrameActive = false;
+
+            if (currentMgAttackType === 'attack1') {
+
+                // 25フレーム目前後の短い区間のみ判定を有効にする
+                hitFrameActive = mgAttackFrameCount >= mgAttackHitFrameStart && mgAttackFrameCount <= mgAttackHitFrameEnd;
+
+            } else if (currentMgAttackType === 'attack2') {
+
+                // 15フレーム目に判定を有効にする（attack1と同じ判定処理）
+                hitFrameActive = mgAttackFrameCount === mgAttack2HitFrame;
+
+            }
+
+            if (!hitFrameActive) return;
 
             // ダッシュ中（透明化中）のct1には当たり判定を発生させない
             if (isDashing || !targetModel.visible) return;
@@ -1183,6 +1319,7 @@
             // ワープ後は攻撃状態をリセットし、mgが再び近づいてこられるようにする
             mgIsAttacking = false;
             mgAttackTriggered = false;
+            currentMgAttackType = null;
             stopMgAnimation();
 
             // ワープの演出として、ワープ先に青白い光を一瞬出す
@@ -1239,6 +1376,7 @@
             // ワープ後は攻撃状態をリセットし、mgが改めてct1を追えるようにする
             mgIsAttacking = false;
             mgAttackTriggered = false;
+            currentMgAttackType = null;
             stopMgAnimation();
 
             // ワープの演出として、ワープ先に青白い光を一瞬出す
@@ -1843,6 +1981,12 @@
             if (isDashing) return;
             if (isCt1Knockback) return; // ノックバック中はジャンプ不可
 
+            // ※mgがまだ攻撃（attack1）を開始していない状態でジャンプした場合、
+            // 次にmgの攻撃が発動する際にattack1の代わりにattack2を再生させる
+            if (!mgIsAttacking) {
+                ct1JumpedBeforeMgAttack = true;
+            }
+
             isJumping = true;
             jumpFrameCount = 0;
             jumpShockwaveSpawned = false;
@@ -2229,7 +2373,7 @@
             // ct1操作
             updateModelMovement(delta);
 
-            // mg → ct1接近・attack1発動
+            // mg → ct1接近・attack1/attack2発動
             updateMgMovement(delta);
 
             // ct1ノックバック
@@ -2282,27 +2426,51 @@
 
                 mgMixer.update(delta);
 
-                if (mgIsAttacking && mgActions.attack1) {
+                if (mgIsAttacking) {
 
-                    mgAttackFrameCount = Math.floor(mgActions.attack1.time * animationFPS);
+                    const activeMgAttackAction =
+                        currentMgAttackType === 'attack2' ? mgActions.attack2 : mgActions.attack1;
 
-                    // 20フレーム目に達したら三日月エフェクトを1回だけ発生
-                    if (!mgCrescentSpawned && mgAttackFrameCount >= mgCrescentFrame) {
-                        spawnMgCrescentEffect();
-                        mgCrescentSpawned = true;
-                    }
+                    if (activeMgAttackAction) {
 
-                    // 25フレーム目に達したらカメラを1回だけ揺らす
-                    if (!mgAttackShakeSpawned && mgAttackFrameCount >= mgAttackShakeFrame) {
-                        triggerCameraShake();
-                        mgAttackShakeSpawned = true;
+                        mgAttackFrameCount = Math.floor(activeMgAttackAction.time * animationFPS);
+
+                        if (currentMgAttackType === 'attack1') {
+
+                            // 20フレーム目に達したら三日月エフェクトを1回だけ発生
+                            if (!mgCrescentSpawned && mgAttackFrameCount >= mgCrescentFrame) {
+                                spawnMgCrescentEffect();
+                                mgCrescentSpawned = true;
+                            }
+
+                            // 25フレーム目に達したらカメラを1回だけ揺らす
+                            if (!mgAttackShakeSpawned && mgAttackFrameCount >= mgAttackShakeFrame) {
+                                triggerCameraShake();
+                                mgAttackShakeSpawned = true;
+                            }
+
+                        }
+
                     }
 
                 }
 
+                // ------------------------------------------------------
+                // 「左1」「右1」ボーンを常に固定角度に上書きする
+                // （mixer.updateによるアニメーションでの回転を、
+                // 　毎フレーム最後にこの角度で上書きする）
+                // ------------------------------------------------------
+                if (mgLeftBone1) {
+                    mgLeftBone1.rotation.z = mgFixedBoneAngleLeft;
+                }
+
+                if (mgRightBone1) {
+                    mgRightBone1.rotation.z = mgFixedBoneAngleRight;
+                }
+
             }
 
-            // mg attack1の当たり判定チェック
+            // mg attack1/attack2の当たり判定チェック
             // （mgMixerの更新後、フレーム数が確定してから行う）
             updateMgAttackHit(delta);
 
