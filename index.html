@@ -158,7 +158,7 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.outputEncoding = THREE.sRGBEncoding;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.15;
+        renderer.toneMappingExposure = 0.95;
 
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
@@ -166,13 +166,13 @@
         // ============================================================
         // ライト
         // ============================================================
-        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 3);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 2.2);
         dirLight.position.set(5, 10, 7.5);
         scene.add(dirLight);
 
-        const fillLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        const fillLight = new THREE.DirectionalLight(0xffffff, 1.0);
         fillLight.position.set(-5, 5, -7);
         scene.add(fillLight);
 
@@ -457,15 +457,17 @@
                         if (!material) return;
 
                         if (material.color) {
-                            material.color.multiplyScalar(0.55);
+                            material.color.multiplyScalar(0.4); // ※重く・暗い色合いに変更（0.55 → 0.4）
                         }
 
-                        material.metalness = 0.05;
-                        material.roughness = 0.85;
-                        material.envMapIntensity = 0.15;
+                        material.metalness = 0.0;   // ※質感を完全にマットにして薄く見えるハイライトを抑える
+                        material.roughness = 0.95;  // ※ハイライトを抑え、重く落ち着いた質感にする
+                        material.envMapIntensity = 0.08; // ※環境光の映り込みを抑えて色が薄れないようにする
 
                         if (material.map) {
                             material.map.encoding = THREE.sRGBEncoding;
+                            // ※テクスチャをはっきりさせるため、異方性フィルタリングを最大化してぼやけを抑える
+                            material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
                             material.map.needsUpdate = true;
                         }
 
@@ -490,6 +492,38 @@
 
                         mgModel = mgGltf.scene;
                         mgModel.scale.set(2.5, 2.5, 2.5);
+
+                        // mgのテクスチャがぼやけて薄く見えないよう、はっきりさせつつ
+                        // 重くダークな色合いに調整する
+                        mgModel.traverse((child) => {
+
+                            if (!child.isMesh) return;
+
+                            const mgMaterials = Array.isArray(child.material) ? child.material : [child.material];
+
+                            mgMaterials.forEach((material) => {
+
+                                if (!material) return;
+
+                                if (material.color) {
+                                    material.color.multiplyScalar(0.45); // 重く・暗い色合いにする
+                                }
+
+                                material.metalness = 0.0;
+                                material.roughness = 0.95;
+                                material.envMapIntensity = 0.08;
+
+                                if (material.map) {
+                                    material.map.encoding = THREE.sRGBEncoding;
+                                    material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                                    material.map.needsUpdate = true;
+                                }
+
+                                material.needsUpdate = true;
+
+                            });
+
+                        });
 
                         // 初期位置：ct1の正面7.0離れた位置
                         const mgForward = new THREE.Vector3(0, 0, 1);
