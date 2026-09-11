@@ -4,14 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>3D GLB Viewer - Analog Stick & Camera Control</title>
-
 <style>
     * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
     }
-
     body {
         width: 100vw;
         height: 100vh;
@@ -19,7 +17,6 @@
         background-color: #1a1a1a;
         touch-action: none;
     }
-
     #canvas-container {
         width: 100%;
         height: 100%;
@@ -28,7 +25,6 @@
         left: 0;
         z-index: 1;
     }
-
     #joystick-container {
         position: absolute;
         left: 30px;
@@ -40,7 +36,6 @@
         user-select: none;
         -webkit-user-select: none;
     }
-
     #joystick-base {
         position: absolute;
         left: 0;
@@ -54,7 +49,6 @@
         user-select: none;
         -webkit-user-select: none;
     }
-
     #joystick-stick {
         position: absolute;
         left: 52px;
@@ -70,7 +64,6 @@
         pointer-events: none;
         transform: translate(0px, 0px);
     }
-
     #jump-button {
         position: absolute;
         right: 20px;
@@ -92,12 +85,10 @@
         -webkit-user-select: none;
         -webkit-tap-highlight-color: transparent;
     }
-
     #jump-button:active {
         background: rgba(255, 255, 255, 0.35);
         transform: scale(0.94);
     }
-
     #dash-button {
         position: absolute;
         right: 20px;
@@ -120,12 +111,10 @@
         -webkit-user-select: none;
         -webkit-tap-highlight-color: transparent;
     }
-
     #dash-button:active {
         background: rgba(255, 255, 255, 0.35);
         transform: scale(0.94);
     }
-
     #at-button {
         position: absolute;
         right: 91px;
@@ -147,2194 +136,910 @@
         -webkit-user-select: none;
         -webkit-tap-highlight-color: transparent;
     }
-
     #at-button:active {
         background: rgba(255, 255, 255, 0.35);
         transform: scale(0.94);
     }
 </style>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-
 </head>
-
 <body>
-
 <div id="canvas-container"></div>
-
 <div id="joystick-container">
     <div id="joystick-base"></div>
     <div id="joystick-stick"></div>
 </div>
-
 <div id="jump-button">↑</div>
 <div id="dash-button">⏫</div>
 <div id="at-button">AT</div>
-
 <script>
-
     // ============================================================
     // Three.js 基本設定
     // ============================================================
-
     const scene = new THREE.Scene();
-
     const camera = new THREE.PerspectiveCamera(
         75,
         window.innerWidth / window.innerHeight,
         0.1,
         1000
     );
-
-    const renderer = new THREE.WebGLRenderer({
-        antialias: true
-    });
-
-    renderer.setSize(
-        window.innerWidth,
-        window.innerHeight
-    );
-
-    renderer.setPixelRatio(
-        Math.min(window.devicePixelRatio, 2)
-    );
-
-    renderer.outputEncoding =
-        THREE.sRGBEncoding;
-
-    renderer.toneMapping =
-        THREE.ACESFilmicToneMapping;
-
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.95;
-
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type =
-        THREE.PCFSoftShadowMap;
-
-    document
-        .getElementById('canvas-container')
-        .appendChild(renderer.domElement);
-
-
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
     // ============================================================
     // ライト
     // ============================================================
-
-    scene.add(
-        new THREE.AmbientLight(
-            0xffffff,
-            0.5
-        )
-    );
-
-    const dirLight =
-        new THREE.DirectionalLight(
-            0xffffff,
-            2.6
-        );
-
-    dirLight.position.set(
-        5,
-        10,
-        7.5
-    );
-
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2.6);
+    dirLight.position.set(5, 10, 7.5);
     dirLight.castShadow = true;
-
     dirLight.shadow.mapSize.width = 2048;
     dirLight.shadow.mapSize.height = 2048;
-
     dirLight.shadow.camera.near = 0.5;
     dirLight.shadow.camera.far = 50;
-
     dirLight.shadow.camera.left = -15;
     dirLight.shadow.camera.right = 15;
     dirLight.shadow.camera.top = 15;
     dirLight.shadow.camera.bottom = -15;
-
     dirLight.shadow.bias = -0.0005;
-
     scene.add(dirLight);
-
-
-    const fillLight =
-        new THREE.DirectionalLight(
-            0xffffff,
-            1.0
-        );
-
-    fillLight.position.set(
-        -5,
-        5,
-        -7
-    );
-
+    const fillLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    fillLight.position.set(-5, 5, -7);
     scene.add(fillLight);
-
-
     // ============================================================
     // 環境マップ
     // ============================================================
-
-    const pmremGenerator =
-        new THREE.PMREMGenerator(renderer);
-
-    const environmentScene =
-        new THREE.Scene();
-
-    environmentScene.background =
-        new THREE.Color(0x202020);
-
-    const environmentLight =
-        new THREE.HemisphereLight(
-            0xffffff,
-            0x222222,
-            2
-        );
-
-    environmentScene.add(
-        environmentLight
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    const environmentScene = new THREE.Scene();
+    environmentScene.background = new THREE.Color(0x202020);
+    const environmentLight = new THREE.HemisphereLight(
+        0xffffff,
+        0x222222,
+        2
     );
-
+    environmentScene.add(environmentLight);
     const environmentTarget =
-        pmremGenerator.fromScene(
-            environmentScene
-        );
-
-    scene.environment =
-        environmentTarget.texture;
-
-
+        pmremGenerator.fromScene(environmentScene);
+    scene.environment = environmentTarget.texture;
     // ============================================================
     // カメラ設定
     // ============================================================
-
     const targetHeightOffset = 1.5;
     const cameraDistance = 1.6;
-
-    let cameraSpherical =
-        new THREE.Spherical(
-            cameraDistance,
-            Math.PI / 2.2,
-            0
-        );
-
+    let cameraSpherical = new THREE.Spherical(
+        cameraDistance,
+        Math.PI / 2.2,
+        0
+    );
     const minPolarAngle = 0.1;
-
-    const maxPolarAngle =
-        Math.PI / 2 - 0.05;
-
-
+    const maxPolarAngle = Math.PI / 2 - 0.05;
     // ============================================================
     // モデル・アニメーション（ct1）
     // ============================================================
-
     let targetModel = null;
     let bgModel = null;
-
     let mixer = null;
-
     let actions = {};
-
     let currentAction = null;
-
     let rootBone = null;
-
     let slashSourceNode = null;
-
-
     const rightWristBoneNamePattern =
         /(right.*hand|right.*wrist|r[_\.]?hand\b|hand[_\.]?r\b|wrist.*r\b|r.*wrist|righthand|rightwrist|右手首|右手首関節|みぎてくび)/i;
-
-
     let rootBoneRestY = 0;
-
     let jumpHeightOffset = 0;
-
-    const rootBoneWorldPosition =
-        new THREE.Vector3();
-
-
-    // ============================================================
-    // AT専用ボーン移動
-    // ============================================================
-    //
-    // ボーンに基づく実移動は at1 / at2 のみ。
-    // 各ATでは「開始時の親Bone位置」と
-    // 「当たり判定フレームの親Bone位置」の2点だけを参照し、
-    // その差分を1回だけtargetModelへ反映する。
-    //
-    // jump / idle / dash / hit等ではボーン由来の移動を行わない。
-    // ============================================================
-
-    let atBoneParent = null;
-
-    const atInitialParentWorldPosition =
-        new THREE.Vector3();
-
-    const atHitParentWorldPosition =
-        new THREE.Vector3();
-
-    const atMotionWorldDelta =
-        new THREE.Vector3();
-
-    let at1MotionApplied = false;
-    let at2MotionApplied = false;
-
-
-    function getAtParentBone() {
-
-        if (!rootBone) {
-            return null;
-        }
-
-        if (
-            rootBone.parent &&
-            rootBone.parent.isBone
-        ) {
-            return rootBone.parent;
-        }
-
-        return null;
-    }
-
-
-    function initializeAtBoneMotion() {
-
-        if (!targetModel) {
-            return;
-        }
-
-        atBoneParent =
-            getAtParentBone();
-
-        if (!atBoneParent) {
-            atInitialParentWorldPosition.set(
-                0,
-                0,
-                0
-            );
-            return;
-        }
-
-        targetModel.updateMatrixWorld(
-            true
-        );
-
-        atBoneParent.getWorldPosition(
-            atInitialParentWorldPosition
-        );
-    }
-
-
-    function applyAtBoneMotionAtHitFrame() {
-
-        if (
-            !targetModel ||
-            !atBoneParent
-        ) {
-            return;
-        }
-
-        targetModel.updateMatrixWorld(
-            true
-        );
-
-        atBoneParent.getWorldPosition(
-            atHitParentWorldPosition
-        );
-
-        atMotionWorldDelta
-            .copy(
-                atHitParentWorldPosition
-            )
-            .sub(
-                atInitialParentWorldPosition
-            );
-
-        // ATのボーン移動は水平移動のみ。
-        atMotionWorldDelta.y = 0;
-
-        targetModel.position.add(
-            atMotionWorldDelta
-        );
-    }
-
-
-    // ============================================================
-    // ジャンプ
-    // ============================================================
-
+    const rootBoneWorldPosition = new THREE.Vector3();
     let isJumping = false;
-
     let jumpFrameCount = 0;
-
     const jumpTransitionFrame = 25;
-
     const animationFPS = 30;
-
     const shockwaveFrame = 22;
-
     let jumpShockwaveSpawned = false;
-
-
-    // ============================================================
-    // ct1 AT攻撃
-    // ============================================================
-
+    // ------------------------------------------------------------
+    // ct1のAT（at1）攻撃
+    // ------------------------------------------------------------
     let isAttacking1 = false;
-
     let at1FrameCount = 0;
-
     let at1HitApplied = false;
-
     const at1HitFrameStart = 11;
     const at1HitFrameEnd = 15;
-
-
-    // at1のみ1.5倍速
+    // ★ at1のみ1.5倍速
     const at1PlaybackSpeed = 1.5;
-
-
-    // ============================================================
-    // ct1 AT2攻撃
-    // ============================================================
-
-    let isAttacking2 = false;
-
-    let at2FrameCount = 0;
-
-    let at2HitApplied = false;
-
-    const at2HitFrame = 10;
-
-
-    const clock =
-        new THREE.Clock();
-
-
+    const clock = new THREE.Clock();
     // ============================================================
     // 移動・カメラ設定
     // ============================================================
-
     const maxMoveSpeed = 4.0;
-
     const jumpMoveSpeedFactor = 0.3;
-
     const rotationSpeed = 10.0;
-
     const cameraTouchSensitivity = 0.005;
-
-
     // ============================================================
     // GLTF Loader
     // ============================================================
-
-    const loader =
-        new THREE.GLTFLoader();
-
-
+    const loader = new THREE.GLTFLoader();
     // ============================================================
-    // mg.glb
+    // mg.glb（敵キャラクター）の設定
     // ============================================================
-
     let mgModel = null;
-
     let mgMixer = null;
-
     let mgActions = {};
-
     let currentMgAction = null;
-
     let currentMgAttackType = null;
-
     const mgMoveSpeed = 1.0;
-
     const mgRotationSpeed = 5.0;
-
     const mgAttackDistance = 2.0;
-
     const mgAttackTriggerDistance = 3.0;
-
     const mgJumpAttack2TriggerDistance = 5.0;
-
     let mgIsMoving = false;
-
     let mgIsAttacking = false;
-
     let mgAttackTriggered = false;
-
-    const mgMoveDirection =
-        new THREE.Vector3();
-
-    const mgTargetPosition =
-        new THREE.Vector3();
-
+    const mgMoveDirection = new THREE.Vector3();
+    const mgTargetPosition = new THREE.Vector3();
     let mgAttackFrameCount = 0;
-
-
-    // ============================================================
-    // mg ボーン
-    // ============================================================
-
+    // ------------------------------------------------------------
+    // mgの「左1」「右1」ボーン
+    // ------------------------------------------------------------
     let mgLeftBone1 = null;
     let mgRightBone1 = null;
-
     const mgFixedBoneAngleLeft =
         THREE.MathUtils.degToRad(130);
-
     const mgFixedBoneAngleRight =
         THREE.MathUtils.degToRad(-130);
-
-
-    // ============================================================
+    // ------------------------------------------------------------
     // ct1側のmg接近制限
-    // ============================================================
-
+    // ------------------------------------------------------------
     const ct1MinDistanceToMg = 1.8;
-
-
-    // ============================================================
-    // mg attack 当たり判定
-    // ============================================================
-
+    // ------------------------------------------------------------
+    // mg attack1 / attack2 当たり判定
+    // ------------------------------------------------------------
     const mgAttackHitboxForwardOffset = 1.2;
-
     const mgAttackHitboxRadius = 2;
-
     const ct1HitboxRadius = 0.6;
-
     const mgAttackHitFrameStart = 23;
-
     const mgAttackHitFrameEnd = 27;
-
     const mgAttack2HitFrame = 15;
-
     let mgAttackHitApplied = false;
-
-    const mgAttackForward =
-        new THREE.Vector3();
-
-    const mgAttackHitPosition =
-        new THREE.Vector3();
-
-
-    // ============================================================
+    const mgAttackForward = new THREE.Vector3();
+    const mgAttackHitPosition = new THREE.Vector3();
+    // ------------------------------------------------------------
     // ct1ノックバック
-    // ============================================================
-
+    // ------------------------------------------------------------
     let isCt1Knockback = false;
-
     let ct1KnockbackElapsed = 0;
-
-    const ct1KnockbackVelocity =
-        new THREE.Vector3();
-
+    const ct1KnockbackVelocity = new THREE.Vector3();
     const ct1KnockbackDuration = 0.5;
-
     const ct1KnockbackStrength = 14.0;
-
     const ct1KnockbackDamping = 3.0;
-
-
-    // ============================================================
+    // ------------------------------------------------------------
     // ct1ジャンプ攻撃
-    // ============================================================
-
+    // ------------------------------------------------------------
     const ct1ApproxHeight = 1.8;
-
     const mgHitboxHeightMultiplier = 2.5;
-
     const mgHitboxHeight =
-        ct1ApproxHeight *
-        mgHitboxHeightMultiplier;
-
-    const mgBodyRadius =
-        ct1MinDistanceToMg;
-
+        ct1ApproxHeight * mgHitboxHeightMultiplier;
+    const mgBodyRadius = ct1MinDistanceToMg;
     const ct1AttackHitboxRadius = 1.5;
-
     const ct1AttackForwardOffset = 0.1;
-
     const ct1AttackVerticalMargin = 1.0;
-
     const jumpAttackFrame = 22;
-
     const mgWarpDistance = 8;
-
     let jumpAttackHitApplied = false;
-
-
-    // ============================================================
+    // ------------------------------------------------------------
     // ジャンプ攻撃ヒット演出
-    // ============================================================
-
-    const jumpHitImpactFlashColor =
-        0xffffff;
-
-    const jumpHitImpactFlashDuration =
-        0.15;
-
-    const jumpHitImpactFlashRadius =
-        0.5;
-
-    const jumpHitImpactFlashMaxScale =
-        3.5;
-
-    const jumpHitImpactBurstCount =
-        45;
-
-    const jumpHitImpactMinSize =
-        0.12;
-
-    const jumpHitImpactMaxSize =
-        0.5;
-
-    const jumpHitImpactMinSpeed =
-        2.5;
-
-    const jumpHitImpactMaxSpeed =
-        6.5;
-
-    const jumpHitImpactMinDuration =
-        0.4;
-
-    const jumpHitImpactMaxDuration =
-        0.8;
-
-    const jumpHitImpactGravity =
-        3.0;
-
+    // ------------------------------------------------------------
+    const jumpHitImpactFlashColor = 0xffffff;
+    const jumpHitImpactFlashDuration = 0.15;
+    const jumpHitImpactFlashRadius = 0.5;
+    const jumpHitImpactFlashMaxScale = 3.5;
+    const jumpHitImpactBurstCount = 45;
+    const jumpHitImpactMinSize = 0.12;
+    const jumpHitImpactMaxSize = 0.5;
+    const jumpHitImpactMinSpeed = 2.5;
+    const jumpHitImpactMaxSpeed = 6.5;
+    const jumpHitImpactMinDuration = 0.4;
+    const jumpHitImpactMaxDuration = 0.8;
+    const jumpHitImpactGravity = 3.0;
     const jumpHitImpactColorA =
         new THREE.Color(0xffffff);
-
     const jumpHitImpactColorB =
         new THREE.Color(0xffe066);
-
-
-    // ============================================================
+    // ------------------------------------------------------------
     // mg距離ワープ
-    // ============================================================
-
-    const mgMaxDistanceFromCt1 =
-        12.0;
-
-    const mgWarpToFrontDistance =
-        4.0;
-
-
-    // ============================================================
+    // ------------------------------------------------------------
+    const mgMaxDistanceFromCt1 = 12.0;
+    const mgWarpToFrontDistance = 4.0;
+    // ------------------------------------------------------------
     // ノックバックフラッシュ
-    // ============================================================
-
-    const knockbackFlashColor =
-        0xffe200;
-
-    const knockbackFlashDuration =
-        0.15;
-
-    const knockbackFlashRadius =
-        0.4;
-
-    const knockbackFlashMaxScale =
-        3.0;
-
-
-    // ============================================================
+    // ------------------------------------------------------------
+    const knockbackFlashColor = 0xffe200;
+    const knockbackFlashDuration = 0.15;
+    const knockbackFlashRadius = 0.4;
+    const knockbackFlashMaxScale = 3.0;
+    // ------------------------------------------------------------
     // attack2衝撃波
-    // ============================================================
-
-    const mgAttack2ShockwaveFlashColor =
-        0xffe200;
-
-    const mgAttack2ShockwaveFlashDuration =
-        0.22;
-
-    const mgAttack2ShockwaveFlashRadius =
-        0.9;
-
-    const mgAttack2ShockwaveFlashMaxScale =
-        6.0;
-
-
-    // ============================================================
+    // ------------------------------------------------------------
+    const mgAttack2ShockwaveFlashColor = 0xffe200;
+    const mgAttack2ShockwaveFlashDuration = 0.22;
+    const mgAttack2ShockwaveFlashRadius = 0.9;
+    const mgAttack2ShockwaveFlashMaxScale = 6.0;
+    // ------------------------------------------------------------
     // attack1 三日月エフェクト
-    // ============================================================
-
+    // ------------------------------------------------------------
     const mgCrescentFrame = 20;
-
     let mgCrescentSpawned = false;
-
     const mgAttackShakeFrame = 25;
-
     let mgAttackShakeSpawned = false;
-
     const mgCrescentArcSteps = 60;
-
-    const mgCrescentArcAngleRange =
-        Math.PI * 0.55;
-
+    const mgCrescentArcAngleRange = Math.PI * 0.55;
     const mgCrescentRadius = 2.7;
-
-    const mgCrescentRadiusVariance =
-        0.4;
-
+    const mgCrescentRadiusVariance = 0.4;
     const mgCrescentHeight = 1.7;
-
-    const mgCrescentCubeMinSize =
-        0.16;
-
-    const mgCrescentCubeMaxSize =
-        0.46;
-
-    const mgCrescentOutwardSpeed =
-        2.6;
-
+    const mgCrescentCubeMinSize = 0.16;
+    const mgCrescentCubeMaxSize = 0.46;
+    const mgCrescentOutwardSpeed = 2.6;
     const mgCrescentGravity = 1.0;
-
-    const mgCrescentMinDuration =
-        0.5;
-
-    const mgCrescentMaxDuration =
-        0.95;
-
+    const mgCrescentMinDuration = 0.5;
+    const mgCrescentMaxDuration = 0.95;
     const mgCrescentColorWhite =
         new THREE.Color(0xffffff);
-
     const mgCrescentColorYellow =
         new THREE.Color(0xffe200);
-
-    const mgCrescentFlashDuration =
-        0.15;
-
-    const mgCrescentFlashRadius =
-        0.6;
-
-    const mgCrescentFlashMaxScale =
-        4.0;
-
-    const mgCrescentFlashColor =
-        0xfff2a0;
-
-
+    const mgCrescentFlashDuration = 0.15;
+    const mgCrescentFlashRadius = 0.6;
+    const mgCrescentFlashMaxScale = 4.0;
+    const mgCrescentFlashColor = 0xfff2a0;
     // ============================================================
     // bg.glb
     // ============================================================
-
     loader.load(
         './bg.glb',
-
         function (gltf) {
-
-            bgModel =
-                gltf.scene;
-
-            bgModel.scale.set(
-                2,
-                2,
-                2
-            );
-
-            bgModel.traverse(
-                (child) => {
-
-                    if (!child.isMesh) {
-                        return;
-                    }
-
-                    const oldMaterial =
-                        child.material;
-
-                    const materials =
-                        Array.isArray(
-                            oldMaterial
-                        )
-                            ? oldMaterial
-                            : [oldMaterial];
-
-                    const newMaterials =
-                        materials.map(
-                            (material) => {
-
-                                return new THREE.MeshBasicMaterial({
-                                    wireframe: true,
-                                    transparent:
-                                        material.transparent,
-                                    opacity:
-                                        material.opacity,
-                                    map:
-                                        material.map ||
-                                        null,
-                                    vertexColors:
-                                        material.vertexColors
-                                });
-
-                            }
-                        );
-
-                    child.material =
-                        Array.isArray(
-                            oldMaterial
-                        )
-                            ? newMaterials
-                            : newMaterials[0];
-
-                    child.receiveShadow =
-                        true;
-                }
-            );
-
-            scene.add(
-                bgModel
-            );
+            bgModel = gltf.scene;
+            bgModel.scale.set(2, 2, 2);
+            bgModel.traverse((child) => {
+                if (!child.isMesh) return;
+                const oldMaterial = child.material;
+                const materials =
+                    Array.isArray(oldMaterial)
+                        ? oldMaterial
+                        : [oldMaterial];
+                const newMaterials = materials.map((material) => {
+                    return new THREE.MeshBasicMaterial({
+                        wireframe: true,
+                        transparent: material.transparent,
+                        opacity: material.opacity,
+                        map: material.map || null,
+                        vertexColors: material.vertexColors
+                    });
+                });
+                child.material =
+                    Array.isArray(oldMaterial)
+                        ? newMaterials
+                        : newMaterials[0];
+                child.receiveShadow = true;
+            });
+            scene.add(bgModel);
         },
-
         undefined,
-
         function (error) {
-
             console.error(
                 'bg.glb の読み込みエラー:',
                 error
             );
-
         }
     );
-
-
     // ============================================================
     // ct1.glb
     // ============================================================
-
     loader.load(
         './ct1.glb',
-
         function (gltf) {
-
-            targetModel =
-                gltf.scene;
-
-            targetModel.rotation.y =
-                Math.PI;
-
-
-            targetModel.traverse(
-                (child) => {
-
-                    if (!child.isMesh) {
-                        return;
+            targetModel = gltf.scene;
+            targetModel.rotation.y = Math.PI;
+            targetModel.traverse((child) => {
+                if (!child.isMesh) return;
+                const materials =
+                    Array.isArray(child.material)
+                        ? child.material
+                        : [child.material];
+                materials.forEach((material) => {
+                    if (!material) return;
+                    if (material.color) {
+                        material.color.multiplyScalar(0.4);
                     }
-
-                    const materials =
-                        Array.isArray(
-                            child.material
-                        )
-                            ? child.material
-                            : [child.material];
-
-                    materials.forEach(
-                        (material) => {
-
-                            if (!material) {
-                                return;
-                            }
-
-                            if (material.color) {
-                                material.color.multiplyScalar(
-                                    0.4
-                                );
-                            }
-
-                            material.metalness =
-                                0.0;
-
-                            material.roughness =
-                                0.95;
-
-                            material.envMapIntensity =
-                                0.08;
-
-                            if (material.map) {
-
-                                material.map.encoding =
-                                    THREE.sRGBEncoding;
-
-                                material.map.anisotropy =
-                                    renderer
-                                        .capabilities
-                                        .getMaxAnisotropy();
-
-                                material.map.needsUpdate =
-                                    true;
-                            }
-
-                            material.needsUpdate =
-                                true;
-
-                        }
-                    );
-
-                    child.castShadow =
-                        true;
-
-                    child.receiveShadow =
-                        true;
-
-                }
-            );
-
-
-            scene.add(
-                targetModel
-            );
-
-
+                    material.metalness = 0.0;
+                    material.roughness = 0.95;
+                    material.envMapIntensity = 0.08;
+                    if (material.map) {
+                        material.map.encoding =
+                            THREE.sRGBEncoding;
+                        material.map.anisotropy =
+                            renderer.capabilities.getMaxAnisotropy();
+                        material.map.needsUpdate = true;
+                    }
+                    material.needsUpdate = true;
+                });
+                child.castShadow = true;
+                child.receiveShadow = true;
+            });
+            scene.add(targetModel);
             const ct1InitialPosition =
                 targetModel.position.clone();
-
             const ct1InitialQuaternion =
                 targetModel.quaternion.clone();
-
-
             // ====================================================
             // mg.glb
             // ====================================================
-
             loader.load(
                 './mg.glb',
-
                 function (mgGltf) {
-
-                    mgModel =
-                        mgGltf.scene;
-
-                    mgModel.scale.set(
-                        2.5,
-                        2.5,
-                        2.5
-                    );
-
-
-                    mgModel.traverse(
-                        (child) => {
-
-                            if (!child.isBone) {
-                                return;
-                            }
-
-                            if (
-                                child.name ===
-                                '左1'
-                            ) {
-
-                                mgLeftBone1 =
-                                    child;
-
-                                console.info(
-                                    '[mg] 左1ボーンを検出:',
-                                    child.name
-                                );
-                            }
-
-                            if (
-                                child.name ===
-                                '右1'
-                            ) {
-
-                                mgRightBone1 =
-                                    child;
-
-                                console.info(
-                                    '[mg] 右1ボーンを検出:',
-                                    child.name
-                                );
-                            }
-
+                    mgModel = mgGltf.scene;
+                    mgModel.scale.set(2.5, 2.5, 2.5);
+                    mgModel.traverse((child) => {
+                        if (!child.isBone) return;
+                        if (child.name === '左1') {
+                            mgLeftBone1 = child;
+                            console.info(
+                                '[mg] 左1ボーンを検出:',
+                                child.name
+                            );
                         }
-                    );
-
-
+                        if (child.name === '右1') {
+                            mgRightBone1 = child;
+                            console.info(
+                                '[mg] 右1ボーンを検出:',
+                                child.name
+                            );
+                        }
+                    });
                     if (!mgLeftBone1) {
-
                         console.warn(
                             '[mg] 左1ボーンが見つかりませんでした。'
                         );
-
                     }
-
                     if (!mgRightBone1) {
-
                         console.warn(
                             '[mg] 右1ボーンが見つかりませんでした。'
                         );
-
                     }
-
-
-                    mgModel.traverse(
-                        (child) => {
-
-                            if (!child.isMesh) {
-                                return;
+                    mgModel.traverse((child) => {
+                        if (!child.isMesh) return;
+                        const mgMaterials =
+                            Array.isArray(child.material)
+                                ? child.material
+                                : [child.material];
+                        mgMaterials.forEach((material) => {
+                            if (!material) return;
+                            if (material.color) {
+                                material.color.multiplyScalar(0.45);
+                                material.color.multiply(
+                                    new THREE.Color(0xfff0a0)
+                                );
                             }
-
-                            const mgMaterials =
-                                Array.isArray(
-                                    child.material
-                                )
-                                    ? child.material
-                                    : [child.material];
-
-                            mgMaterials.forEach(
-                                (material) => {
-
-                                    if (!material) {
-                                        return;
-                                    }
-
-                                    if (
-                                        material.color
-                                    ) {
-
-                                        material.color.multiplyScalar(
-                                            0.45
-                                        );
-
-                                        material.color.multiply(
-                                            new THREE.Color(
-                                                0xfff0a0
-                                            )
-                                        );
-                                    }
-
-                                    material.metalness =
-                                        0.0;
-
-                                    material.roughness =
-                                        0.95;
-
-                                    material.envMapIntensity =
-                                        0.08;
-
-                                    material.transparent =
-                                        true;
-
-                                    material.opacity =
-                                        0.99;
-
-                                    if (
-                                        material.map
-                                    ) {
-
-                                        material.map.encoding =
-                                            THREE.sRGBEncoding;
-
-                                        material.map.anisotropy =
-                                            renderer
-                                                .capabilities
-                                                .getMaxAnisotropy();
-
-                                        material.map.needsUpdate =
-                                            true;
-                                    }
-
-                                    material.needsUpdate =
-                                        true;
-
-                                }
-                            );
-
-                            child.castShadow =
-                                true;
-
-                            child.receiveShadow =
-                                true;
-
-                        }
-                    );
-
-
+                            material.metalness = 0.0;
+                            material.roughness = 0.95;
+                            material.envMapIntensity = 0.08;
+                            material.transparent = true;
+                            material.opacity = 0.99;
+                            if (material.map) {
+                                material.map.encoding =
+                                    THREE.sRGBEncoding;
+                                material.map.anisotropy =
+                                    renderer.capabilities.getMaxAnisotropy();
+                                material.map.needsUpdate = true;
+                            }
+                            material.needsUpdate = true;
+                        });
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    });
                     const mgForward =
-                        new THREE.Vector3(
-                            0,
-                            0,
-                            1
-                        );
-
+                        new THREE.Vector3(0, 0, 1);
                     mgForward.applyQuaternion(
                         ct1InitialQuaternion
                     );
-
                     mgForward.y = 0;
-
-                    if (
-                        mgForward.lengthSq() >
-                        0
-                    ) {
-
+                    if (mgForward.lengthSq() > 0) {
                         mgForward.normalize();
-
                     }
-
-
                     mgModel.position
-                        .copy(
-                            ct1InitialPosition
-                        )
-                        .addScaledVector(
-                            mgForward,
-                            7.0
-                        );
-
-
+                        .copy(ct1InitialPosition)
+                        .addScaledVector(mgForward, 7.0);
                     mgModel.quaternion.copy(
                         ct1InitialQuaternion
                     );
-
-
                     const mgRotationOffset =
                         new THREE.Quaternion();
-
                     mgRotationOffset.setFromAxisAngle(
-                        new THREE.Vector3(
-                            0,
-                            1,
-                            0
-                        ),
+                        new THREE.Vector3(0, 1, 0),
                         Math.PI
                     );
-
                     mgModel.quaternion.multiply(
                         mgRotationOffset
                     );
-
-
-                    scene.add(
-                        mgModel
-                    );
-
-
+                    scene.add(mgModel);
                     // ================================================
                     // mgアニメーション
                     // ================================================
-
                     if (
                         mgGltf.animations &&
                         mgGltf.animations.length > 0
                     ) {
-
                         mgMixer =
-                            new THREE.AnimationMixer(
-                                mgModel
-                            );
-
-
-                        mgGltf.animations.forEach(
-                            (clip) => {
-
-                                const action =
-                                    mgMixer.clipAction(
-                                        clip
-                                    );
-
-                                const animationName =
-                                    clip.name
-                                        .trim()
-                                        .toLowerCase();
-
-
-                                if (
-                                    animationName ===
-                                    'walk'
-                                ) {
-
-                                    mgActions.walk =
-                                        action;
-
-                                    action.setLoop(
-                                        THREE.LoopRepeat,
-                                        Infinity
-                                    );
-
-                                    action.clampWhenFinished =
-                                        false;
-
-                                }
-
-
-                                if (
-                                    animationName ===
-                                    'attack1'
-                                ) {
-
-                                    mgActions.attack1 =
-                                        action;
-
-                                    action.setLoop(
-                                        THREE.LoopOnce,
-                                        1
-                                    );
-
-                                    action.clampWhenFinished =
-                                        true;
-
-                                }
-
-
-                                if (
-                                    animationName ===
-                                    'attack2'
-                                ) {
-
-                                    mgActions.attack2 =
-                                        action;
-
-                                    action.setLoop(
-                                        THREE.LoopOnce,
-                                        1
-                                    );
-
-                                    action.clampWhenFinished =
-                                        true;
-
-                                }
-
+                            new THREE.AnimationMixer(mgModel);
+                        mgGltf.animations.forEach((clip) => {
+                            const action =
+                                mgMixer.clipAction(clip);
+                            const animationName =
+                                clip.name.trim().toLowerCase();
+                            if (animationName === 'walk') {
+                                mgActions.walk = action;
+                                action.setLoop(
+                                    THREE.LoopRepeat,
+                                    Infinity
+                                );
+                                action.clampWhenFinished = false;
                             }
-                        );
-
-
+                            if (animationName === 'attack1') {
+                                mgActions.attack1 = action;
+                                action.setLoop(
+                                    THREE.LoopOnce,
+                                    1
+                                );
+                                action.clampWhenFinished = true;
+                            }
+                            if (animationName === 'attack2') {
+                                mgActions.attack2 = action;
+                                action.setLoop(
+                                    THREE.LoopOnce,
+                                    1
+                                );
+                                action.clampWhenFinished = true;
+                            }
+                        });
                         if (!mgActions.attack1) {
-
                             console.warn(
                                 '[mg] attack1アニメーションが見つかりません。'
                             );
-
                         }
-
-
                         if (!mgActions.attack2) {
-
                             console.warn(
                                 '[mg] attack2アニメーションが見つかりません。'
                             );
-
                         }
-
-
                         mgMixer.addEventListener(
                             'finished',
                             function (event) {
-
                                 if (
-                                    event.action ===
-                                        mgActions.attack1 ||
-                                    event.action ===
-                                        mgActions.attack2
+                                    event.action === mgActions.attack1 ||
+                                    event.action === mgActions.attack2
                                 ) {
-
-                                    mgIsAttacking =
-                                        false;
-
-                                    currentMgAttackType =
-                                        null;
-
-                                    mgAttackTriggered =
-                                        false;
-
+                                    mgIsAttacking = false;
+                                    currentMgAttackType = null;
+                                    mgAttackTriggered = false;
                                 }
-
                             }
                         );
-
                     } else {
-
                         console.warn(
                             '[mg] アニメーションがありません。'
                         );
-
                     }
-
                 },
-
                 undefined,
-
                 function (error) {
-
                     console.error(
                         'mg.glb の読み込みエラー:',
                         error
                     );
-
                 }
             );
-
-
             // ====================================================
             // ct1アニメーション
             // ====================================================
-
             if (
                 gltf.animations &&
                 gltf.animations.length > 0
             ) {
-
                 mixer =
-                    new THREE.AnimationMixer(
-                        targetModel
-                    );
-
-
-                gltf.animations.forEach(
-                    (clip) => {
-
-                        const action =
-                            mixer.clipAction(
-                                clip
-                            );
-
-                        const animationName =
-                            clip.name
-                                .trim()
-                                .toLowerCase();
-
-
-                        if (
-                            animationName ===
-                            'jump'
-                        ) {
-
-                            actions.jump =
-                                action;
-
-                            action.setLoop(
-                                THREE.LoopOnce,
-                                1
-                            );
-
-                            action.clampWhenFinished =
-                                true;
-
+                    new THREE.AnimationMixer(targetModel);
+                gltf.animations.forEach((clip) => {
+                    const action =
+                        mixer.clipAction(clip);
+                    const animationName =
+                        clip.name.trim().toLowerCase();
+                    if (animationName === 'jump') {
+                        actions.jump = action;
+                        action.setLoop(
+                            THREE.LoopOnce,
+                            1
+                        );
+                        action.clampWhenFinished = true;
+                    } else if (animationName === 'at1') {
+                        actions.at1 = action;
+                        action.setLoop(
+                            THREE.LoopOnce,
+                            1
+                        );
+                        action.clampWhenFinished = true;
+                        // ★ at1を1.5倍速に設定
+                        action.setEffectiveTimeScale(
+                            at1PlaybackSpeed
+                        );
+                    } else if (animationName === 'hit') {
+                        actions.hit = action;
+                        action.setLoop(
+                            THREE.LoopOnce,
+                            1
+                        );
+                        action.clampWhenFinished = true;
+                    } else {
+                        action.setLoop(
+                            THREE.LoopRepeat,
+                            Infinity
+                        );
+                        action.clampWhenFinished = false;
+                        if (animationName === 'idle') {
+                            actions.idle = action;
                         }
-
-
-                        else if (
-                            animationName ===
-                            'at1'
-                        ) {
-
-                            actions.at1 =
-                                action;
-
-                            action.setLoop(
-                                THREE.LoopOnce,
-                                1
-                            );
-
-                            action.clampWhenFinished =
-                                true;
-
-                            action.setEffectiveTimeScale(
-                                at1PlaybackSpeed
-                            );
-
+                        if (animationName === 'dash') {
+                            actions.dash = action;
                         }
-
-
-                        else if (
-                            animationName ===
-                            'at2'
-                        ) {
-
-                            actions.at2 =
-                                action;
-
-                            action.setLoop(
-                                THREE.LoopOnce,
-                                1
-                            );
-
-                            action.clampWhenFinished =
-                                true;
-
-                        }
-
-
-                        else if (
-                            animationName ===
-                            'hit'
-                        ) {
-
-                            actions.hit =
-                                action;
-
-                            action.setLoop(
-                                THREE.LoopOnce,
-                                1
-                            );
-
-                            action.clampWhenFinished =
-                                true;
-
-                        }
-
-
-                        else {
-
-                            action.setLoop(
-                                THREE.LoopRepeat,
-                                Infinity
-                            );
-
-                            action.clampWhenFinished =
-                                false;
-
-
-                            if (
-                                animationName ===
-                                'idle'
-                            ) {
-
-                                actions.idle =
-                                    action;
-
-                            }
-
-
-                            if (
-                                animationName ===
-                                'dash'
-                            ) {
-
-                                actions.dash =
-                                    action;
-
-                            }
-
-                        }
-
                     }
-                );
-
-
+                });
                 mixer.addEventListener(
                     'finished',
                     function (event) {
-
                         if (
-                            event.action ===
-                                actions.jump &&
+                            event.action === actions.jump &&
                             isJumping
                         ) {
-
-                            isJumping =
-                                false;
-
+                            isJumping = false;
                             updateMovementAnimation();
-
                         }
-
-
                         if (
-                            event.action ===
-                                actions.at1 &&
+                            event.action === actions.at1 &&
                             isAttacking1
                         ) {
-
-                            isAttacking1 =
-                                false;
-
+                            isAttacking1 = false;
                             updateMovementAnimation();
-
                         }
-
-
-                        if (
-                            event.action ===
-                                actions.at2 &&
-                            isAttacking2
-                        ) {
-
-                            isAttacking2 =
-                                false;
-
-                            updateMovementAnimation();
-
-                        }
-
                     }
                 );
-
-
-                setAction(
-                    'idle'
-                );
-
+                setAction('idle');
             }
-
-
             // ====================================================
             // ボーン検出
             // ====================================================
-
-            /*
-             * Root Motion用には
-             * 最上位の親Boneを使用。
-             */
-            rootBone =
-                findTopMostBone(
-                    targetModel
-                );
-
-
-            targetModel.traverse(
-                (child) => {
-
-                    if (
-                        !slashSourceNode &&
-                        child.isBone &&
-                        rightWristBoneNamePattern.test(
-                            child.name
-                        )
-                    ) {
-
-                        slashSourceNode =
-                            child;
-
-                        console.info(
-                            '[斬撃エフェクト] 右手首らしき名前のボーンを検出:',
-                            child.name
-                        );
-
-                    }
-
+            targetModel.traverse((child) => {
+                if (child.isBone && !rootBone) {
+                    rootBone = child;
                 }
-            );
-
-
+                if (
+                    !slashSourceNode &&
+                    child.isBone &&
+                    rightWristBoneNamePattern.test(child.name)
+                ) {
+                    slashSourceNode = child;
+                    console.info(
+                        '[斬撃エフェクト] 右手首らしき名前のボーンを検出:',
+                        child.name
+                    );
+                }
+            });
             if (!slashSourceNode) {
-
-                slashSourceNode =
-                    rootBone;
-
+                slashSourceNode = rootBone;
                 console.warn(
                     '[斬撃エフェクト] 右手首らしき名前のボーンが見つからなかったため、rootBoneにフォールバックしました。'
                 );
-
             }
-
-
             if (rootBone) {
-
-                targetModel.updateMatrixWorld(
-                    true
-                );
-
+                targetModel.updateMatrixWorld(true);
                 rootBone.getWorldPosition(
                     rootBoneWorldPosition
                 );
-
                 rootBoneRestY =
                     rootBoneWorldPosition.y;
-
-    
-
             }
-
-
             updateCameraPosition();
-
         },
-
         undefined,
-
         function (error) {
-
             console.error(
                 'ct1.glb の読み込みエラー:',
                 error
             );
-
         }
     );
-
-
     // ============================================================
     // ct1 アニメーション切り替え
     // ============================================================
-
     function setAction(name) {
-
-        if (
-            !mixer ||
-            !actions[name]
-        ) {
-            return;
-        }
-
-
-        const nextAction =
-            actions[name];
-
-
-        if (
-            currentAction !==
-            nextAction
-        ) {
-
+        if (!mixer || !actions[name]) return;
+        const nextAction = actions[name];
+        if (currentAction !== nextAction) {
             if (currentAction) {
-
-                currentAction.fadeOut(
-                    0.2
-                );
-
+                currentAction.fadeOut(0.2);
             }
-
-
-            nextAction
-                .reset()
-                .play();
-
-
-            if (
-                name ===
-                'at1'
-            ) {
-
+            nextAction.reset().play();
+            // ★ at1は常に1.5倍速を維持
+            if (name === 'at1') {
                 nextAction.setEffectiveTimeScale(
                     at1PlaybackSpeed
                 );
-
             }
-
-
-            if (
-                name ===
-                'at2'
-            ) {
-
-                nextAction.setEffectiveTimeScale(
-                    1.0
-                );
-
-            }
-
-
-            currentAction =
-                nextAction;
-
-
-
+            currentAction = nextAction;
         }
-
     }
-
-
     // ============================================================
     // mg アニメーション切り替え
     // ============================================================
-
     function setMgAction(name) {
-
-        if (
-            !mgMixer ||
-            !mgActions[name]
-        ) {
-            return;
-        }
-
-
-        const nextAction =
-            mgActions[name];
-
-
-        if (
-            currentMgAction !==
-            nextAction
-        ) {
-
+        if (!mgMixer || !mgActions[name]) return;
+        const nextAction = mgActions[name];
+        if (currentMgAction !== nextAction) {
             if (currentMgAction) {
-
-                currentMgAction.fadeOut(
-                    0.2
-                );
-
+                currentMgAction.fadeOut(0.2);
             }
-
-
-            nextAction
-                .reset()
-                .play();
-
-
-            currentMgAction =
-                nextAction;
-
+            nextAction.reset().play();
+            currentMgAction = nextAction;
         }
-
     }
-
-
     function stopMgAnimation() {
-
-        if (!currentMgAction) {
-            return;
-        }
-
-        currentMgAction.fadeOut(
-            0.2
-        );
-
-        currentMgAction =
-            null;
-
+        if (!currentMgAction) return;
+        currentMgAction.fadeOut(0.2);
+        currentMgAction = null;
     }
-
-
     // ============================================================
     // mg attack1
     // ============================================================
-
     function playMgAttack1() {
-
-        if (
-            !mgMixer ||
-            !mgActions.attack1
-        ) {
-
+        if (!mgMixer || !mgActions.attack1) {
             console.warn(
                 '[mg] attack1を再生できません。'
             );
-
             return;
         }
-
-
-        if (mgIsAttacking) {
-            return;
-        }
-
-
+        if (mgIsAttacking) return;
         mgIsAttacking = true;
-
         mgIsMoving = false;
-
-        currentMgAttackType =
-            'attack1';
-
-        mgAttackHitApplied =
-            false;
-
-        mgCrescentSpawned =
-            false;
-
-        mgAttackShakeSpawned =
-            false;
-
-        mgAttackFrameCount =
-            0;
-
-
+        currentMgAttackType = 'attack1';
+        mgAttackHitApplied = false;
+        mgCrescentSpawned = false;
+        mgAttackShakeSpawned = false;
+        mgAttackFrameCount = 0;
         if (currentMgAction) {
-
-            currentMgAction.fadeOut(
-                0.1
-            );
-
+            currentMgAction.fadeOut(0.1);
         }
-
-
         const attackAction =
             mgActions.attack1;
-
-
         attackAction
             .reset()
-            .setLoop(
-                THREE.LoopOnce,
-                1
-            );
-
-
-        attackAction.clampWhenFinished =
-            true;
-
-
+            .setLoop(THREE.LoopOnce, 1);
+        attackAction.clampWhenFinished = true;
         attackAction
             .fadeIn(0.1)
             .play();
-
-
-        currentMgAction =
-            attackAction;
-
+        currentMgAction = attackAction;
     }
-
-
     // ============================================================
     // mg attack2
     // ============================================================
-
     function playMgAttack2() {
-
-        if (
-            !mgMixer ||
-            !mgActions.attack2
-        ) {
-
+        if (!mgMixer || !mgActions.attack2) {
             console.warn(
                 '[mg] attack2を再生できません。attack1で代用します。'
             );
-
             playMgAttack1();
-
             return;
         }
-
-
-        if (mgIsAttacking) {
-            return;
-        }
-
-
+        if (mgIsAttacking) return;
         mgIsAttacking = true;
-
         mgIsMoving = false;
-
-        currentMgAttackType =
-            'attack2';
-
-        mgAttackHitApplied =
-            false;
-
-        mgCrescentSpawned =
-            false;
-
-        mgAttackShakeSpawned =
-            false;
-
-        mgAttackFrameCount =
-            0;
-
-
+        currentMgAttackType = 'attack2';
+        mgAttackHitApplied = false;
+        mgCrescentSpawned = false;
+        mgAttackShakeSpawned = false;
+        mgAttackFrameCount = 0;
         if (currentMgAction) {
-
-            currentMgAction.fadeOut(
-                0.1
-            );
-
+            currentMgAction.fadeOut(0.1);
         }
-
-
         const attackAction =
             mgActions.attack2;
-
-
         attackAction
             .reset()
-            .setLoop(
-                THREE.LoopOnce,
-                1
-            );
-
-
-        attackAction.clampWhenFinished =
-            true;
-
-
+            .setLoop(THREE.LoopOnce, 1);
+        attackAction.clampWhenFinished = true;
         attackAction
             .fadeIn(0.1)
             .play();
-
-
-        currentMgAction =
-            attackAction;
-
+        currentMgAction = attackAction;
     }
-
-
     // ============================================================
     // mg 移動・攻撃
     // ============================================================
-
     function updateMgMovement(delta) {
-
-        if (
-            !mgModel ||
-            !targetModel
-        ) {
-            return;
-        }
-
-
+        if (!mgModel || !targetModel) return;
         mgTargetPosition.copy(
             targetModel.position
         );
-
-
         mgMoveDirection.subVectors(
             mgTargetPosition,
             mgModel.position
         );
-
-
         mgMoveDirection.y = 0;
-
-
         const distance =
             mgMoveDirection.length();
-
-
         if (
             !mgAttackTriggered &&
             !mgIsAttacking &&
-            distance <=
-                mgAttackTriggerDistance
+            distance <= mgAttackTriggerDistance
         ) {
-
-            mgAttackTriggered =
-                true;
-
+            mgAttackTriggered = true;
             playMgAttack1();
-
         }
-
-
         if (mgIsAttacking) {
-
-            mgIsMoving =
-                false;
-
+            mgIsMoving = false;
             return;
-
         }
-
-
-        if (
-            distance <=
-            mgAttackDistance
-        ) {
-
-            mgIsMoving =
-                false;
-
+        if (distance <= mgAttackDistance) {
+            mgIsMoving = false;
             stopMgAnimation();
-
             return;
-
         }
-
-
-        if (
-            distance >
-            mgAttackTriggerDistance
-        ) {
-
-            mgAttackTriggered =
-                false;
-
+        if (distance > mgAttackTriggerDistance) {
+            mgAttackTriggered = false;
         }
-
-
-        mgIsMoving =
-            true;
-
-
+        mgIsMoving = true;
         mgMoveDirection.normalize();
-
-
         const allowedMoveAmount =
             Math.max(
-                distance -
-                    mgAttackDistance,
+                distance - mgAttackDistance,
                 0
             );
-
-
         const moveAmount =
-            mgMoveSpeed *
-            delta;
-
-
-        if (
-            moveAmount >=
-            allowedMoveAmount
-        ) {
-
+            mgMoveSpeed * delta;
+        if (moveAmount >= allowedMoveAmount) {
             mgModel.position.addScaledVector(
                 mgMoveDirection,
                 allowedMoveAmount
             );
-
         } else {
-
             mgModel.position.addScaledVector(
                 mgMoveDirection,
                 moveAmount
             );
-
         }
-
-
         const targetAngle =
             Math.atan2(
                 mgMoveDirection.x,
                 mgMoveDirection.z
             );
-
-
         const targetQuaternion =
             new THREE.Quaternion();
-
-
         targetQuaternion.setFromAxisAngle(
-            new THREE.Vector3(
-                0,
-                1,
-                0
-            ),
+            new THREE.Vector3(0, 1, 0),
             targetAngle
         );
-
-
         mgModel.quaternion.slerp(
             targetQuaternion,
             Math.min(
-                mgRotationSpeed *
-                    delta,
+                mgRotationSpeed * delta,
                 1
             )
         );
-
-
         if (mgActions.walk) {
-
-            setMgAction(
-                'walk'
-            );
-
+            setMgAction('walk');
         }
-
     }
-
-
     // ============================================================
     // ct1距離制限
     // ============================================================
-
     function clampCt1DistanceFromMg() {
-
-        if (
-            !targetModel ||
-            !mgModel
-        ) {
-            return;
-        }
-
-
+        if (!targetModel || !mgModel) return;
         const dx =
             targetModel.position.x -
             mgModel.position.x;
-
         const dz =
             targetModel.position.z -
             mgModel.position.z;
-
-
         const distance =
-            Math.hypot(
-                dx,
-                dz
-            );
-
-
+            Math.hypot(dx, dz);
         if (
-            distance >=
-            ct1MinDistanceToMg
+            distance >= ct1MinDistanceToMg
         ) {
             return;
         }
-
-
-        if (
-            distance >
-            0.0001
-        ) {
-
+        if (distance > 0.0001) {
             const pushScale =
                 ct1MinDistanceToMg /
                 distance;
-
-
             targetModel.position.x =
                 mgModel.position.x +
                 dx * pushScale;
-
-
             targetModel.position.z =
                 mgModel.position.z +
                 dz * pushScale;
-
         } else {
-
             targetModel.position.x =
                 mgModel.position.x +
                 ct1MinDistanceToMg;
-
             targetModel.position.z =
                 mgModel.position.z;
-
         }
-
     }
-
-
     // ============================================================
     // mg攻撃ヒット判定
     // ============================================================
-
     function updateMgAttackHit(delta) {
-
+        if (!mgModel || !targetModel) return;
+        if (!mgIsAttacking) return;
+        if (mgAttackHitApplied) return;
+        let hitFrameActive = false;
         if (
-            !mgModel ||
-            !targetModel
+            currentMgAttackType === 'attack1'
         ) {
-            return;
-        }
-
-
-        if (!mgIsAttacking) {
-            return;
-        }
-
-
-        if (mgAttackHitApplied) {
-            return;
-        }
-
-
-        let hitFrameActive =
-            false;
-
-
-        if (
-            currentMgAttackType ===
-            'attack1'
-        ) {
-
             hitFrameActive =
                 mgAttackFrameCount >=
-                    mgAttackHitFrameStart &&
+                mgAttackHitFrameStart &&
                 mgAttackFrameCount <=
-                    mgAttackHitFrameEnd;
-
-        }
-
-        else if (
-            currentMgAttackType ===
-            'attack2'
+                mgAttackHitFrameEnd;
+        } else if (
+            currentMgAttackType === 'attack2'
         ) {
-
             hitFrameActive =
                 mgAttackFrameCount ===
                 mgAttack2HitFrame;
-
         }
-
-
-        if (!hitFrameActive) {
-            return;
-        }
-
-
+        if (!hitFrameActive) return;
         if (
             isDashing ||
             !targetModel.visible
         ) {
             return;
         }
-
-
-        mgAttackForward.set(
-            0,
-            0,
-            1
-        );
-
-
+        mgAttackForward.set(0, 0, 1);
         mgAttackForward.applyQuaternion(
             mgModel.quaternion
         );
-
-
         mgAttackForward.y = 0;
-
-
-        if (
-            mgAttackForward.lengthSq() >
-            0
-        ) {
-
+        if (mgAttackForward.lengthSq() > 0) {
             mgAttackForward.normalize();
-
         }
-
-
         mgAttackHitPosition
-            .copy(
-                mgModel.position
-            )
+            .copy(mgModel.position)
             .addScaledVector(
                 mgAttackForward,
                 mgAttackHitboxForwardOffset
             );
-
-
         const dx =
             targetModel.position.x -
             mgAttackHitPosition.x;
-
         const dz =
             targetModel.position.z -
             mgAttackHitPosition.z;
-
-
         const distance =
-            Math.hypot(
-                dx,
-                dz
-            );
-
-
+            Math.hypot(dx, dz);
         if (
             distance <=
             mgAttackHitboxRadius +
             ct1HitboxRadius
         ) {
-
-            mgAttackHitApplied =
-                true;
-
-
-            applyCt1Knockback(
-                dx,
-                dz
-            );
-
-
+            mgAttackHitApplied = true;
+            applyCt1Knockback(dx, dz);
             const flashPosition =
                 mgAttackHitPosition.clone();
-
-
-            flashPosition.y +=
-                1.0;
-
-
+            flashPosition.y += 1.0;
             if (
                 currentMgAttackType ===
                 'attack2'
             ) {
-
                 spawnFlashParticle(
                     flashPosition,
                     {
@@ -2344,20 +1049,13 @@
                             mgAttack2ShockwaveFlashDuration,
                         maxScale:
                             mgAttack2ShockwaveFlashMaxScale,
-                        startOpacity:
-                            1.0,
+                        startOpacity: 1.0,
                         color:
                             mgAttack2ShockwaveFlashColor
                     }
                 );
-
-
                 triggerCameraShake();
-
-            }
-
-            else {
-
+            } else {
                 spawnFlashParticle(
                     flashPosition,
                     {
@@ -2367,269 +1065,134 @@
                             knockbackFlashDuration,
                         maxScale:
                             knockbackFlashMaxScale,
-                        startOpacity:
-                            1.0,
+                        startOpacity: 1.0,
                         color:
                             knockbackFlashColor
                     }
                 );
-
             }
-
         }
-
     }
-
-
     // ============================================================
     // ct1ノックバック
     // ============================================================
-
     function applyCt1Knockback(
         dirX,
         dirZ
     ) {
-
         const knockDir =
             new THREE.Vector3(
                 dirX,
                 0,
                 dirZ
             );
-
-
-        if (
-            knockDir.lengthSq() >
-            0
-        ) {
-
+        if (knockDir.lengthSq() > 0) {
             knockDir.normalize();
-
         }
-
-
         if (isDashing) {
-
-            isDashing =
-                false;
-
-            targetModel.visible =
-                true;
-
+            isDashing = false;
+            targetModel.visible = true;
         }
-
-
         if (isJumping) {
-            isJumping =
-                false;
+            isJumping = false;
         }
-
-
         if (isAttacking1) {
-            isAttacking1 =
-                false;
+            isAttacking1 = false;
         }
-
-
-        if (isAttacking2) {
-            isAttacking2 =
-                false;
-        }
-
-
         if (actions.hit) {
-
-            setAction(
-                'hit'
-            );
-
+            setAction('hit');
         } else {
-
-            setAction(
-                'idle'
-            );
-
+            setAction('idle');
         }
-
-
         ct1KnockbackVelocity
             .copy(knockDir)
             .multiplyScalar(
                 ct1KnockbackStrength
             );
-
-
-        ct1KnockbackElapsed =
-            0;
-
-
-        isCt1Knockback =
-            true;
-
+        ct1KnockbackElapsed = 0;
+        isCt1Knockback = true;
     }
-
-
-    function updateCt1Knockback(
-        delta
-    ) {
-
+    function updateCt1Knockback(delta) {
         if (
             !isCt1Knockback ||
             !targetModel
         ) {
             return;
         }
-
-
         if (isDashing) {
-
-            isCt1Knockback =
-                false;
-
+            isCt1Knockback = false;
             ct1KnockbackVelocity.set(
                 0,
                 0,
                 0
             );
-
             return;
-
         }
-
-
-        ct1KnockbackElapsed +=
-            delta;
-
-
+        ct1KnockbackElapsed += delta;
         targetModel.position.addScaledVector(
             ct1KnockbackVelocity,
             delta
         );
-
-
         const damping =
             Math.max(
                 0,
                 1 -
-                    ct1KnockbackDamping *
-                    delta
+                ct1KnockbackDamping *
+                delta
             );
-
-
         ct1KnockbackVelocity.multiplyScalar(
             damping
         );
-
-
         if (
             ct1KnockbackElapsed >=
             ct1KnockbackDuration
         ) {
-
-            isCt1Knockback =
-                false;
-
+            isCt1Knockback = false;
             ct1KnockbackVelocity.set(
                 0,
                 0,
                 0
             );
-
             updateMovementAnimation();
-
         }
-
     }
-
-
     // ============================================================
     // ct1ジャンプ攻撃
     // ============================================================
-
     function updateCt1JumpAttackHit() {
-
-        if (
-            !mgModel ||
-            !targetModel
-        ) {
-            return;
-        }
-
-
-        if (!isJumping) {
-            return;
-        }
-
-
-        if (jumpAttackHitApplied) {
-            return;
-        }
-
-
+        if (!mgModel || !targetModel) return;
+        if (!isJumping) return;
+        if (jumpAttackHitApplied) return;
         if (
             jumpFrameCount !==
             jumpAttackFrame
         ) {
             return;
         }
-
-
         const forward =
-            new THREE.Vector3(
-                0,
-                0,
-                1
-            );
-
-
+            new THREE.Vector3(0, 0, 1);
         forward.applyQuaternion(
             targetModel.quaternion
         );
-
-
         forward.y = 0;
-
-
-        if (
-            forward.lengthSq() >
-            0
-        ) {
-
+        if (forward.lengthSq() > 0) {
             forward.normalize();
-
         }
-
-
         const attackPosition =
             targetModel.position.clone();
-
-
-        attackPosition.y +=
-            jumpHeightOffset;
-
-
+        attackPosition.y += jumpHeightOffset;
         attackPosition.addScaledVector(
             forward,
             ct1AttackForwardOffset
         );
-
-
         const dx =
             attackPosition.x -
             mgModel.position.x;
-
         const dz =
             attackPosition.z -
             mgModel.position.z;
-
-
         const horizontalDistance =
-            Math.hypot(
-                dx,
-                dz
-            );
-
-
+            Math.hypot(dx, dz);
         if (
             horizontalDistance >
             ct1AttackHitboxRadius +
@@ -2637,131 +1200,60 @@
         ) {
             return;
         }
-
-
         const relativeHeight =
             attackPosition.y -
             mgModel.position.y;
-
-
         if (
             relativeHeight <
-                -ct1AttackVerticalMargin ||
+            -ct1AttackVerticalMargin ||
             relativeHeight >
-                mgHitboxHeight +
-                ct1AttackVerticalMargin
+            mgHitboxHeight +
+            ct1AttackVerticalMargin
         ) {
             return;
         }
-
-
-        jumpAttackHitApplied =
-            true;
-
-
+        jumpAttackHitApplied = true;
         spawnJumpHitImpactEffect(
             attackPosition
         );
-
-
         warpMgAwayFromCt1();
-
     }
-
-
     // ============================================================
-    // ct1 AT1 ヒット
+    // ct1 AT攻撃ヒット判定
     // ============================================================
-
     function updateCt1At1Hit() {
-
-        if (
-            !mgModel ||
-            !targetModel
-        ) {
-            return;
-        }
-
-
-        if (!isAttacking1) {
-            return;
-        }
-
-
-        if (at1HitApplied) {
-            return;
-        }
-
-
+        if (!mgModel || !targetModel) return;
+        if (!isAttacking1) return;
+        if (at1HitApplied) return;
         const hitFrameActive =
-            at1FrameCount >=
-                at1HitFrameStart &&
-            at1FrameCount <=
-                at1HitFrameEnd;
-
-
-        if (!hitFrameActive) {
-            return;
-        }
-
-
+            at1FrameCount >= at1HitFrameStart &&
+            at1FrameCount <= at1HitFrameEnd;
+        if (!hitFrameActive) return;
         const forward =
-            new THREE.Vector3(
-                0,
-                0,
-                1
-            );
-
-
+            new THREE.Vector3(0, 0, 1);
         forward.applyQuaternion(
             targetModel.quaternion
         );
-
-
         forward.y = 0;
-
-
-        if (
-            forward.lengthSq() >
-            0
-        ) {
-
+        if (forward.lengthSq() > 0) {
             forward.normalize();
-
         }
-
-
         const attackPosition =
             targetModel.position.clone();
-
-
         attackPosition.y +=
-            targetHeightOffset *
-            0.5;
-
-
+            targetHeightOffset * 0.5;
         attackPosition.addScaledVector(
             forward,
             ct1AttackForwardOffset
         );
-
-
         const dx =
             attackPosition.x -
             mgModel.position.x;
-
         const dz =
             attackPosition.z -
             mgModel.position.z;
-
-
         const horizontalDistance =
-            Math.hypot(
-                dx,
-                dz
-            );
-
-
+            Math.hypot(dx, dz);
         if (
             horizontalDistance >
             ct1AttackHitboxRadius +
@@ -2769,225 +1261,64 @@
         ) {
             return;
         }
-
-
         const relativeHeight =
             attackPosition.y -
             mgModel.position.y;
-
-
         if (
             relativeHeight <
-                -ct1AttackVerticalMargin ||
+            -ct1AttackVerticalMargin ||
             relativeHeight >
-                mgHitboxHeight +
-                ct1AttackVerticalMargin
+            mgHitboxHeight +
+            ct1AttackVerticalMargin
         ) {
             return;
         }
-
-
-        at1HitApplied =
-            true;
-
-
+        at1HitApplied = true;
         spawnJumpHitImpactEffect(
             attackPosition
         );
-
-
         warpMgAwayFromCt1();
-
     }
-
-
-    // ============================================================
-    // ct1 AT2 ヒット
-    // ============================================================
-
-    function updateCt1At2Hit() {
-
-        if (
-            !mgModel ||
-            !targetModel
-        ) {
-            return;
-        }
-
-
-        if (!isAttacking2) {
-            return;
-        }
-
-
-        if (at2HitApplied) {
-            return;
-        }
-
-
-        if (
-            at2FrameCount !==
-            at2HitFrame
-        ) {
-            return;
-        }
-
-
-        const forward =
-            new THREE.Vector3(
-                0,
-                0,
-                1
-            );
-
-
-        forward.applyQuaternion(
-            targetModel.quaternion
-        );
-
-
-        forward.y = 0;
-
-
-        if (
-            forward.lengthSq() >
-            0
-        ) {
-
-            forward.normalize();
-
-        }
-
-
-        const attackPosition =
-            targetModel.position.clone();
-
-
-        attackPosition.y +=
-            targetHeightOffset *
-            0.5;
-
-
-        attackPosition.addScaledVector(
-            forward,
-            ct1AttackForwardOffset
-        );
-
-
-        const dx =
-            attackPosition.x -
-            mgModel.position.x;
-
-        const dz =
-            attackPosition.z -
-            mgModel.position.z;
-
-
-        const horizontalDistance =
-            Math.hypot(
-                dx,
-                dz
-            );
-
-
-        if (
-            horizontalDistance >
-            ct1AttackHitboxRadius +
-            mgBodyRadius
-        ) {
-            return;
-        }
-
-
-        const relativeHeight =
-            attackPosition.y -
-            mgModel.position.y;
-
-
-        if (
-            relativeHeight <
-                -ct1AttackVerticalMargin ||
-            relativeHeight >
-                mgHitboxHeight +
-                ct1AttackVerticalMargin
-        ) {
-            return;
-        }
-
-
-        at2HitApplied =
-            true;
-
-
-        spawnJumpHitImpactEffect(
-            attackPosition
-        );
-
-
-        warpMgAwayFromCt1();
-
-    }
-
-
     // ============================================================
     // ジャンプ攻撃ヒット演出
     // ============================================================
-
     function spawnJumpHitImpactEffect(
         attackPosition
     ) {
-
-        if (!mgModel) {
-            return;
-        }
-
-
+        if (!mgModel) return;
         const impactDirection =
             new THREE.Vector3(
                 attackPosition.x -
-                    mgModel.position.x,
+                mgModel.position.x,
                 0,
                 attackPosition.z -
-                    mgModel.position.z
+                mgModel.position.z
             );
-
-
         if (
             impactDirection.lengthSq() >
             0.0001
         ) {
-
             impactDirection.normalize();
-
         } else {
-
             impactDirection.set(
                 0,
                 0,
                 1
             );
-
         }
-
-
         const impactPosition =
-            mgModel.position
-                .clone()
+            mgModel.position.clone()
                 .addScaledVector(
                     impactDirection,
                     mgBodyRadius
                 );
-
-
         impactPosition.y =
             THREE.MathUtils.clamp(
                 attackPosition.y,
                 mgModel.position.y,
                 mgModel.position.y +
-                    mgHitboxHeight
+                mgHitboxHeight
             );
-
-
         spawnFlashParticle(
             impactPosition,
             {
@@ -2997,14 +1328,11 @@
                     jumpHitImpactFlashDuration,
                 maxScale:
                     jumpHitImpactFlashMaxScale,
-                startOpacity:
-                    1.0,
+                startOpacity: 1.0,
                 color:
                     jumpHitImpactFlashColor
             }
         );
-
-
         spawnCubeBurst(
             impactPosition,
             {
@@ -3028,127 +1356,65 @@
                     jumpHitImpactColorA,
                 colorB:
                     jumpHitImpactColorB,
-                elevationMin:
-                    -0.1,
-                elevationMax:
-                    1.0,
-                spawnSpread:
-                    0.3
+                elevationMin: -0.1,
+                elevationMax: 1.0,
+                spawnSpread: 0.3
             }
         );
-
     }
-
-
     // ============================================================
     // mgワープ
     // ============================================================
-
     function warpMgAwayFromCt1() {
-
-        if (
-            !mgModel ||
-            !targetModel
-        ) {
-            return;
-        }
-
-
+        if (!mgModel || !targetModel) return;
         const dx =
             mgModel.position.x -
             targetModel.position.x;
-
         const dz =
             mgModel.position.z -
             targetModel.position.z;
-
-
         const warpDirection =
             new THREE.Vector3(
                 dx,
                 0,
                 dz
             );
-
-
         if (
             warpDirection.lengthSq() <
             0.0001
         ) {
-
             warpDirection
-                .set(
-                    0,
-                    0,
-                    1
-                )
+                .set(0, 0, 1)
                 .applyQuaternion(
                     targetModel.quaternion
                 );
-
-            warpDirection.y =
-                0;
-
+            warpDirection.y = 0;
         }
-
-
-        if (
-            warpDirection.lengthSq() >
-            0
-        ) {
-
+        if (warpDirection.lengthSq() > 0) {
             warpDirection.normalize();
-
         }
-
-
         mgModel.position
-            .copy(
-                targetModel.position
-            )
+            .copy(targetModel.position)
             .addScaledVector(
                 warpDirection,
                 mgWarpDistance
             );
-
-
         const targetAngle =
             Math.atan2(
                 -warpDirection.x,
                 -warpDirection.z
             );
-
-
         mgModel.quaternion.setFromAxisAngle(
-            new THREE.Vector3(
-                0,
-                1,
-                0
-            ),
+            new THREE.Vector3(0, 1, 0),
             targetAngle
         );
-
-
-        mgIsAttacking =
-            false;
-
-        mgAttackTriggered =
-            false;
-
-        currentMgAttackType =
-            null;
-
+        mgIsAttacking = false;
+        mgAttackTriggered = false;
+        currentMgAttackType = null;
         stopMgAnimation();
-
-
         const flashPosition =
             mgModel.position.clone();
-
-
-        flashPosition.y +=
-            1.2;
-
-
+        flashPosition.y += 1.2;
         spawnFlashParticle(
             flashPosition,
             {
@@ -3157,149 +1423,67 @@
                 duration:
                     knockbackFlashDuration,
                 maxScale:
-                    knockbackFlashMaxScale *
-                    1.3,
-                startOpacity:
-                    1.0,
-                color:
-                    0x66ccff
+                    knockbackFlashMaxScale * 1.3,
+                startOpacity: 1.0,
+                color: 0x66ccff
             }
         );
-
     }
-
-
     // ============================================================
     // mg距離ワープ
     // ============================================================
-
     function updateMgDistanceWarp() {
-
-        if (
-            !mgModel ||
-            !targetModel
-        ) {
-            return;
-        }
-
-
-        if (mgIsAttacking) {
-            return;
-        }
-
-
+        if (!mgModel || !targetModel) return;
+        if (mgIsAttacking) return;
         const dx =
             mgModel.position.x -
             targetModel.position.x;
-
         const dz =
             mgModel.position.z -
             targetModel.position.z;
-
-
         const distance =
-            Math.hypot(
-                dx,
-                dz
-            );
-
-
+            Math.hypot(dx, dz);
         if (
             distance <=
             mgMaxDistanceFromCt1
         ) {
             return;
         }
-
-
         warpMgInFrontOfCt1();
-
     }
-
-
     function warpMgInFrontOfCt1() {
-
-        if (
-            !mgModel ||
-            !targetModel
-        ) {
-            return;
-        }
-
-
+        if (!mgModel || !targetModel) return;
         const forward =
-            new THREE.Vector3(
-                0,
-                0,
-                1
-            );
-
-
+            new THREE.Vector3(0, 0, 1);
         forward.applyQuaternion(
             targetModel.quaternion
         );
-
-
         forward.y = 0;
-
-
-        if (
-            forward.lengthSq() >
-            0
-        ) {
-
+        if (forward.lengthSq() > 0) {
             forward.normalize();
-
         }
-
-
         mgModel.position
-            .copy(
-                targetModel.position
-            )
+            .copy(targetModel.position)
             .addScaledVector(
                 forward,
                 mgWarpToFrontDistance
             );
-
-
         const targetAngle =
             Math.atan2(
                 -forward.x,
                 -forward.z
             );
-
-
         mgModel.quaternion.setFromAxisAngle(
-            new THREE.Vector3(
-                0,
-                1,
-                0
-            ),
+            new THREE.Vector3(0, 1, 0),
             targetAngle
         );
-
-
-        mgIsAttacking =
-            false;
-
-        mgAttackTriggered =
-            false;
-
-        currentMgAttackType =
-            null;
-
+        mgIsAttacking = false;
+        mgAttackTriggered = false;
+        currentMgAttackType = null;
         stopMgAnimation();
-
-
         const flashPosition =
             mgModel.position.clone();
-
-
-        flashPosition.y +=
-            1.2;
-
-
+        flashPosition.y += 1.2;
         spawnFlashParticle(
             flashPosition,
             {
@@ -3308,89 +1492,52 @@
                 duration:
                     knockbackFlashDuration,
                 maxScale:
-                    knockbackFlashMaxScale *
-                    1.3,
-                startOpacity:
-                    1.0,
-                color:
-                    0x66ccff
+                    knockbackFlashMaxScale * 1.3,
+                startOpacity: 1.0,
+                color: 0x66ccff
             }
         );
-
     }
-
-
     // ============================================================
     // パーティクル
     // ============================================================
-
     const particles = [];
-
-
-    function randomRange(
-        min,
-        max
-    ) {
-
+    function randomRange(min, max) {
         return min +
             Math.random() *
             (max - min);
-
     }
-
-
     function spawnFlashParticle(
         position,
         options
     ) {
-
         const geometry =
             new THREE.SphereGeometry(
                 options.radius,
                 12,
                 12
             );
-
-
         const material =
             new THREE.MeshBasicMaterial({
-                color:
-                    options.color,
-                transparent:
-                    true,
+                color: options.color,
+                transparent: true,
                 opacity:
                     options.startOpacity,
-                depthWrite:
-                    false,
+                depthWrite: false,
                 blending:
                     THREE.AdditiveBlending
             });
-
-
         const mesh =
             new THREE.Mesh(
                 geometry,
                 material
             );
-
-
-        mesh.position.copy(
-            position
-        );
-
-
-        scene.add(
-            mesh
-        );
-
-
+        mesh.position.copy(position);
+        scene.add(mesh);
         particles.push({
-            kind:
-                'flash',
-            mesh:
-                mesh,
-            elapsed:
-                0,
+            kind: 'flash',
+            mesh: mesh,
+            elapsed: 0,
             duration:
                 options.duration,
             maxScale:
@@ -3398,144 +1545,94 @@
             startOpacity:
                 options.startOpacity
         });
-
     }
-
-
     function spawnCubeBurst(
         position,
         params
     ) {
-
         const spawnSpread =
-            params.spawnSpread ||
-            0;
-
-
+            params.spawnSpread || 0;
         for (
             let i = 0;
             i < params.count;
             i++
         ) {
-
             const size =
                 randomRange(
                     params.minSize,
                     params.maxSize
                 );
-
-
             const geometry =
                 new THREE.BoxGeometry(
                     size,
                     size,
                     size *
-                        randomRange(
-                            0.15,
-                            0.35
-                        )
+                    randomRange(
+                        0.15,
+                        0.35
+                    )
                 );
-
-
             const color =
-                params.colorA
-                    .clone()
+                params.colorA.clone()
                     .lerp(
                         params.colorB,
                         Math.random()
                     );
-
-
             const material =
                 new THREE.MeshBasicMaterial({
-                    color:
-                        color,
-                    transparent:
-                        true,
-                    opacity:
-                        1.0,
-                    side:
-                        THREE.DoubleSide,
-                    depthWrite:
-                        false,
+                    color: color,
+                    transparent: true,
+                    opacity: 1.0,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
                     blending:
                         THREE.AdditiveBlending
                 });
-
-
             const mesh =
                 new THREE.Mesh(
                     geometry,
                     material
                 );
-
-
             const spawnPosition =
                 position.clone();
-
-
-            if (
-                spawnSpread > 0
-            ) {
-
+            if (spawnSpread > 0) {
                 spawnPosition.x +=
                     randomRange(
                         -spawnSpread,
                         spawnSpread
                     );
-
                 spawnPosition.y +=
                     randomRange(
                         -spawnSpread * 0.4,
                         spawnSpread
                     );
-
                 spawnPosition.z +=
                     randomRange(
                         -spawnSpread,
                         spawnSpread
                     );
-
             }
-
-
             mesh.position.copy(
                 spawnPosition
             );
-
-
             mesh.rotation.set(
                 Math.random() *
-                    Math.PI *
-                    2,
+                    Math.PI * 2,
                 Math.random() *
-                    Math.PI *
-                    2,
+                    Math.PI * 2,
                 Math.random() *
-                    Math.PI *
-                    2
+                    Math.PI * 2
             );
-
-
             const azimuth =
                 Math.random() *
-                Math.PI *
-                2;
-
-
+                Math.PI * 2;
             const elevation =
                 randomRange(
                     params.elevationMin,
                     params.elevationMax
                 );
-
-
             const horizontalRadius =
-                Math.cos(
-                    elevation
-                );
-
-
+                Math.cos(elevation);
             const direction =
                 new THREE.Vector3(
                     Math.cos(azimuth) *
@@ -3544,41 +1641,26 @@
                     Math.sin(azimuth) *
                         horizontalRadius
                 );
-
-
             const speed =
                 randomRange(
                     params.minSpeed,
                     params.maxSpeed
                 );
-
-
             const velocity =
                 direction.multiplyScalar(
                     speed
                 );
-
-
             const angularVelocity =
                 new THREE.Vector3(
                     randomRange(-10, 10),
                     randomRange(-10, 10),
                     randomRange(-10, 10)
                 );
-
-
-            scene.add(
-                mesh
-            );
-
-
+            scene.add(mesh);
             particles.push({
-                kind:
-                    'cube',
-                mesh:
-                    mesh,
-                elapsed:
-                    0,
+                kind: 'cube',
+                mesh: mesh,
+                elapsed: 0,
                 duration:
                     randomRange(
                         params.minDuration,
@@ -3590,204 +1672,113 @@
                     angularVelocity,
                 gravity:
                     params.gravity,
-                startOpacity:
-                    1.0,
-                startScale:
-                    1.0
+                startOpacity: 1.0,
+                startScale: 1.0
             });
-
         }
-
     }
-
-
-    function updateParticles(
-        delta
-    ) {
-
+    function updateParticles(delta) {
         for (
-            let i =
-                particles.length - 1;
+            let i = particles.length - 1;
             i >= 0;
             i--
         ) {
-
             const effect =
                 particles[i];
-
-
-            effect.elapsed +=
-                delta;
-
-
+            effect.elapsed += delta;
             const t =
                 Math.min(
                     effect.elapsed /
                         effect.duration,
                     1
                 );
-
-
             if (
-                effect.kind ===
-                'flash'
+                effect.kind === 'flash'
             ) {
-
                 const scale =
                     1 +
                     t *
-                        (
-                            effect.maxScale -
-                            1
-                        );
-
-
+                    (
+                        effect.maxScale -
+                        1
+                    );
                 effect.mesh.scale.set(
                     scale,
                     scale,
                     scale
                 );
-
-
                 effect.mesh.material.opacity =
                     effect.startOpacity *
                     (1 - t);
-
-            }
-
-            else {
-
+            } else {
                 effect.velocity.y -=
                     effect.gravity *
                     delta;
-
-
                 effect.mesh.position
                     .addScaledVector(
                         effect.velocity,
                         delta
                     );
-
-
                 effect.mesh.rotation.x +=
                     effect.angularVelocity.x *
                     delta;
-
                 effect.mesh.rotation.y +=
                     effect.angularVelocity.y *
                     delta;
-
                 effect.mesh.rotation.z +=
                     effect.angularVelocity.z *
                     delta;
-
-
                 const scale =
                     effect.startScale *
-                    (
-                        1 -
-                        t * 0.5
-                    );
-
-
+                    (1 - t * 0.5);
                 effect.mesh.scale.set(
                     scale,
                     scale,
                     scale
                 );
-
-
                 effect.mesh.material.opacity =
                     effect.startOpacity *
                     (1 - t);
-
             }
-
-
-            if (
-                t >= 1
-            ) {
-
+            if (t >= 1) {
                 scene.remove(
                     effect.mesh
                 );
-
                 effect.mesh.geometry.dispose();
-
                 effect.mesh.material.dispose();
-
-                particles.splice(
-                    i,
-                    1
-                );
-
+                particles.splice(i, 1);
             }
-
         }
-
     }
-
-
     // ============================================================
     // mg attack1 三日月エフェクト
     // ============================================================
-
     function spawnMgCrescentEffect() {
-
-        if (!mgModel) {
-            return;
-        }
-
-
+        if (!mgModel) return;
         const forward =
-            new THREE.Vector3(
-                0,
-                0,
-                1
-            );
-
-
+            new THREE.Vector3(0, 0, 1);
         forward.applyQuaternion(
             mgModel.quaternion
         );
-
-
         forward.y = 0;
-
-
-        if (
-            forward.lengthSq() >
-            0
-        ) {
-
+        if (forward.lengthSq() > 0) {
             forward.normalize();
-
         }
-
-
         const baseAngle =
             Math.atan2(
                 forward.x,
                 forward.z
             );
-
-
         const origin =
             mgModel.position.clone();
-
-
         origin.y +=
             mgCrescentHeight;
-
-
         const flashOrigin =
             origin.clone()
                 .addScaledVector(
                     forward,
                     mgCrescentRadius
                 );
-
-
         spawnFlashParticle(
             flashOrigin,
             {
@@ -3797,82 +1788,56 @@
                     mgCrescentFlashDuration,
                 maxScale:
                     mgCrescentFlashMaxScale,
-                startOpacity:
-                    1.0,
+                startOpacity: 1.0,
                 color:
                     mgCrescentFlashColor
             }
         );
-
-
         for (
             let i = 0;
             i < mgCrescentArcSteps;
             i++
         ) {
-
             const t =
                 mgCrescentArcSteps <= 1
                     ? 0.5
                     : i /
-                        (
-                            mgCrescentArcSteps -
-                            1
-                        );
-
-
+                      (
+                        mgCrescentArcSteps -
+                        1
+                      );
             const angleOffset =
-                (
-                    t - 0.5
-                ) *
+                (t - 0.5) *
                 mgCrescentArcAngleRange;
-
-
             const angle =
                 baseAngle +
                 angleOffset;
-
-
             const edgeFactor =
                 1 -
-                Math.abs(
-                    t - 0.5
-                ) *
+                Math.abs(t - 0.5) *
                 2;
-
-
             const radius =
                 mgCrescentRadius +
                 randomRange(
                     -mgCrescentRadiusVariance,
                     mgCrescentRadiusVariance *
-                        0.5
+                    0.5
                 ) +
                 edgeFactor *
-                    0.4;
-
-
+                0.4;
             const position =
                 origin.clone();
-
-
             position.x +=
                 Math.sin(angle) *
                 radius;
-
-
             position.z +=
                 Math.cos(angle) *
                 radius;
-
-
             position.y +=
                 randomRange(
                     -0.15,
                     0.3
                 );
-
-
             const size =
                 randomRange(
                     mgCrescentCubeMinSize,
@@ -3881,10 +1846,8 @@
                 (
                     0.5 +
                     edgeFactor *
-                        0.8
+                    0.8
                 );
-
-
             const geometry =
                 new THREE.BoxGeometry(
                     size,
@@ -3899,8 +1862,6 @@
                             0.4
                         )
                 );
-
-
             const color =
                 mgCrescentColorWhite
                     .clone()
@@ -3908,60 +1869,37 @@
                         mgCrescentColorYellow,
                         Math.random()
                     );
-
-
             const material =
                 new THREE.MeshBasicMaterial({
-                    color:
-                        color,
-                    transparent:
-                        true,
-                    opacity:
-                        1.0,
-                    side:
-                        THREE.DoubleSide,
-                    depthWrite:
-                        false,
+                    color: color,
+                    transparent: true,
+                    opacity: 1.0,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
                     blending:
                         THREE.AdditiveBlending
                 });
-
-
             const mesh =
                 new THREE.Mesh(
                     geometry,
                     material
                 );
-
-
             mesh.position.copy(
                 position
             );
-
-
             mesh.rotation.y =
                 angle;
-
-
             mesh.rotation.z =
                 randomRange(
                     -0.3,
                     0.3
                 );
-
-
             mesh.rotation.x =
                 randomRange(
                     -0.2,
                     0.2
                 );
-
-
-            scene.add(
-                mesh
-            );
-
-
+            scene.add(mesh);
             const outwardDirection =
                 new THREE.Vector3(
                     Math.sin(angle),
@@ -3971,36 +1909,24 @@
                     ),
                     Math.cos(angle)
                 );
-
-
             if (
                 outwardDirection.lengthSq() >
                 0
             ) {
-
                 outwardDirection.normalize();
-
             }
-
-
             const velocity =
-                outwardDirection
-                    .multiplyScalar(
-                        mgCrescentOutwardSpeed *
-                        randomRange(
-                            0.6,
-                            1.3
-                        )
-                    );
-
-
+                outwardDirection.multiplyScalar(
+                    mgCrescentOutwardSpeed *
+                    randomRange(
+                        0.6,
+                        1.3
+                    )
+                );
             particles.push({
-                kind:
-                    'cube',
-                mesh:
-                    mesh,
-                elapsed:
-                    0,
+                kind: 'cube',
+                mesh: mesh,
+                elapsed: 0,
                 duration:
                     randomRange(
                         mgCrescentMinDuration,
@@ -4016,162 +1942,70 @@
                     ),
                 gravity:
                     mgCrescentGravity,
-                startOpacity:
-                    1.0,
-                startScale:
-                    1.0
+                startOpacity: 1.0,
+                startScale: 1.0
             });
-
         }
-
     }
-
-
     // ============================================================
     // ジャンプ衝撃波
     // ============================================================
-
-    const shockwaveFlashDuration =
-        0.12;
-
-    const shockwaveFlashRadius =
-        0.5;
-
-    const shockwaveFlashMaxScale =
-        3.2;
-
-    const shockwaveFlashMaxOpacity =
-        1.0;
-
-    const shockwaveFlashColor =
-        0xffffff;
-
-    const shockwaveSparkCount =
-        55;
-
-    const shockwaveSparkMinSpeed =
-        2.0;
-
-    const shockwaveSparkMaxSpeed =
-        6.0;
-
-    const shockwaveSparkMinSize =
-        0.08;
-
-    const shockwaveSparkMaxSize =
-        0.24;
-
-    const shockwaveSparkMinDuration =
-        0.4;
-
-    const shockwaveSparkMaxDuration =
-        0.9;
-
-    const shockwaveSparkGravity =
-        3.5;
-
+    const shockwaveFlashDuration = 0.12;
+    const shockwaveFlashRadius = 0.5;
+    const shockwaveFlashMaxScale = 3.2;
+    const shockwaveFlashMaxOpacity = 1.0;
+    const shockwaveFlashColor = 0xffffff;
+    const shockwaveSparkCount = 55;
+    const shockwaveSparkMinSpeed = 2.0;
+    const shockwaveSparkMaxSpeed = 6.0;
+    const shockwaveSparkMinSize = 0.08;
+    const shockwaveSparkMaxSize = 0.24;
+    const shockwaveSparkMinDuration = 0.4;
+    const shockwaveSparkMaxDuration = 0.9;
+    const shockwaveSparkGravity = 3.5;
     const shockwaveSparkColorRed =
         new THREE.Color(0xff2200);
-
     const shockwaveSparkColorBlack =
         new THREE.Color(0x120000);
-
-    const blackBurstCount =
-        45;
-
-    const blackBurstMinSpeed =
-        3.0;
-
-    const blackBurstMaxSpeed =
-        7.0;
-
-    const blackBurstMinSize =
-        0.1;
-
-    const blackBurstMaxSize =
-        0.26;
-
-    const blackBurstMinDuration =
-        0.5;
-
-    const blackBurstMaxDuration =
-        1.0;
-
-    const blackBurstGravity =
-        2.5;
-
-    const blackBurstElevationMin =
-        0.9;
-
-    const blackBurstElevationMax =
-        1.4;
-
-    const blackBurstSpawnSpread =
-        0.2;
-
+    const blackBurstCount = 45;
+    const blackBurstMinSpeed = 3.0;
+    const blackBurstMaxSpeed = 7.0;
+    const blackBurstMinSize = 0.1;
+    const blackBurstMaxSize = 0.26;
+    const blackBurstMinDuration = 0.5;
+    const blackBurstMaxDuration = 1.0;
+    const blackBurstGravity = 2.5;
+    const blackBurstElevationMin = 0.9;
+    const blackBurstElevationMax = 1.4;
+    const blackBurstSpawnSpread = 0.2;
     const blackBurstColorDark =
         new THREE.Color(0x1a0000);
-
     const blackBurstColorBlack =
         new THREE.Color(0x000000);
-
-    const shockwaveForwardOffset =
-        0.9;
-
-    const shockwaveGroundOffset =
-        0.05;
-
-
+    const shockwaveForwardOffset = 0.9;
+    const shockwaveGroundOffset = 0.05;
     function getShockwaveOriginPosition() {
-
         const forward =
-            new THREE.Vector3(
-                0,
-                0,
-                1
-            );
-
-
+            new THREE.Vector3(0, 0, 1);
         forward.applyQuaternion(
             targetModel.quaternion
         );
-
-
         forward.y = 0;
-
-
         forward.normalize();
-
-
         const basePosition =
-            targetModel.position
-                .clone()
+            targetModel.position.clone()
                 .addScaledVector(
                     forward,
                     shockwaveForwardOffset
                 );
-
-
         basePosition.y +=
             shockwaveGroundOffset;
-
-
         return basePosition;
-
     }
-
-
     function spawnJumpImpactEffects() {
-
-        if (!targetModel) {
-            return;
-        }
-
-
+        if (!targetModel) return;
         const origin =
             getShockwaveOriginPosition();
-
-
         spawnFlashParticle(
             origin,
             {
@@ -4187,8 +2021,6 @@
                     shockwaveFlashColor
             }
         );
-
-
         spawnCubeBurst(
             origin,
             {
@@ -4212,16 +2044,11 @@
                     shockwaveSparkColorRed,
                 colorB:
                     shockwaveSparkColorBlack,
-                elevationMin:
-                    -0.1,
-                elevationMax:
-                    1.0,
-                spawnSpread:
-                    0
+                elevationMin: -0.1,
+                elevationMax: 1.0,
+                spawnSpread: 0
             }
         );
-
-
         spawnCubeBurst(
             origin,
             {
@@ -4253,68 +2080,33 @@
                     blackBurstSpawnSpread
             }
         );
-
     }
-
-
     // ============================================================
     // 斬撃エフェクト
     // ============================================================
-
-    const slashEffectSpawnCountPerFrame =
-        3;
-
-    const slashEffectSpawnSpread =
-        0.55;
-
-    const slashEffectMinSize =
-        0.14;
-
-    const slashEffectMaxSize =
-        0.38;
-
-    const slashEffectMinSpeed =
-        0.6;
-
-    const slashEffectMaxSpeed =
-        2.4;
-
-    const slashEffectMinDuration =
-        0.25;
-
-    const slashEffectMaxDuration =
-        0.55;
-
-    const slashEffectGravity =
-        1.0;
-
-    const slashEffectElevationMin =
-        -0.3;
-
-    const slashEffectElevationMax =
-        0.9;
-
+    const slashEffectSpawnCountPerFrame = 3;
+    const slashEffectSpawnSpread = 0.55;
+    const slashEffectMinSize = 0.14;
+    const slashEffectMaxSize = 0.38;
+    const slashEffectMinSpeed = 0.6;
+    const slashEffectMaxSpeed = 2.4;
+    const slashEffectMinDuration = 0.25;
+    const slashEffectMaxDuration = 0.55;
+    const slashEffectGravity = 1.0;
+    const slashEffectElevationMin = -0.3;
+    const slashEffectElevationMax = 0.9;
     const slashSourceWorldPosition =
         new THREE.Vector3();
-
-
-    function updateSlashEffect(
-        delta
-    ) {
-
+    function updateSlashEffect(delta) {
         if (
             !isJumping ||
             !slashSourceNode
         ) {
             return;
         }
-
-
         slashSourceNode.getWorldPosition(
             slashSourceWorldPosition
         );
-
-
         spawnCubeBurst(
             slashSourceWorldPosition,
             {
@@ -4346,79 +2138,37 @@
                     slashEffectSpawnSpread
             }
         );
-
     }
-
-
     // ============================================================
     // ダッシュ
     // ============================================================
-
-    let isDashing =
-        false;
-
-    let dashElapsed =
-        0;
-
-    const dashDuration =
-        0.22;
-
-    const dashDistance =
-        7.0;
-
+    let isDashing = false;
+    let dashElapsed = 0;
+    const dashDuration = 0.22;
+    const dashDistance = 7.0;
     const dashDirection =
         new THREE.Vector3();
-
     const dashStartPosition =
         new THREE.Vector3();
-
     const dashCurrentPosition =
         new THREE.Vector3();
-
     const dashTrailSpawnPosition =
         new THREE.Vector3();
-
-    const dashTrailSpawnCountPerFrame =
-        5;
-
-    const dashTrailSpawnSpread =
-        0.35;
-
-    const dashTrailMinSize =
-        0.12;
-
-    const dashTrailMaxSize =
-        0.32;
-
-    const dashTrailMinSpeed =
-        0.2;
-
-    const dashTrailMaxSpeed =
-        1.0;
-
-    const dashTrailMinDuration =
-        0.35;
-
-    const dashTrailMaxDuration =
-        0.7;
-
-    const dashTrailGravity =
-        1.2;
-
-    const dashTrailElevationMin =
-        -0.15;
-
-    const dashTrailElevationMax =
-        0.7;
-
-    const dashTrailHeightOffset =
-        0.9;
-
-
+    const dashTrailSpawnCountPerFrame = 5;
+    const dashTrailSpawnSpread = 0.35;
+    const dashTrailMinSize = 0.12;
+    const dashTrailMaxSize = 0.32;
+    const dashTrailMinSpeed = 0.2;
+    const dashTrailMaxSpeed = 1.0;
+    const dashTrailMinDuration = 0.35;
+    const dashTrailMaxDuration = 0.7;
+    const dashTrailGravity = 1.2;
+    const dashTrailElevationMin = -0.15;
+    const dashTrailElevationMax = 0.7;
+    const dashTrailHeightOffset = 0.9;
     function spawnDashTrailParticles(
         position
     ) {
-
         spawnCubeBurst(
             position,
             {
@@ -4450,260 +2200,113 @@
                     dashTrailSpawnSpread
             }
         );
-
     }
-
-
     function dashForward() {
-
-        if (!targetModel) {
-            return;
-        }
-
-
-        if (
-            isDashing ||
-            isJumping
-        ) {
-            return;
-        }
-
-
-        if (isCt1Knockback) {
-            return;
-        }
-
-
-        if (
-            isAttacking1 ||
-            isAttacking2
-        ) {
-            return;
-        }
-
-
+        if (!targetModel) return;
+        if (isDashing || isJumping) return;
+        if (isCt1Knockback) return;
+        if (isAttacking1) return;
         const forward =
-            new THREE.Vector3(
-                0,
-                0,
-                1
-            );
-
-
+            new THREE.Vector3(0, 0, 1);
         forward.applyQuaternion(
             targetModel.quaternion
         );
-
-
         forward.y = 0;
-
-
         forward.normalize();
-
-
-        dashDirection.copy(
-            forward
-        );
-
-
+        dashDirection.copy(forward);
         dashStartPosition.copy(
             targetModel.position
         );
-
-
-        dashElapsed =
-            0;
-
-
-        isDashing =
-            true;
-
-
-        isCt1Knockback =
-            false;
-
-
+        dashElapsed = 0;
+        isDashing = true;
+        isCt1Knockback = false;
         ct1KnockbackVelocity.set(
             0,
             0,
             0
         );
-
-
-        targetModel.visible =
-            false;
-
+        targetModel.visible = false;
     }
-
-
-    function updateDash(
-        delta
-    ) {
-
-        if (!isDashing) {
-            return;
-        }
-
-
-        dashElapsed +=
-            delta;
-
-
+    function updateDash(delta) {
+        if (!isDashing) return;
+        dashElapsed += delta;
         const t =
             Math.min(
                 dashElapsed /
                     dashDuration,
                 1
             );
-
-
         dashCurrentPosition
-            .copy(
-                dashStartPosition
-            )
+            .copy(dashStartPosition)
             .addScaledVector(
                 dashDirection,
-                dashDistance *
-                    t
+                dashDistance * t
             );
-
-
         targetModel.position.copy(
             dashCurrentPosition
         );
-
-
         dashTrailSpawnPosition.copy(
             dashCurrentPosition
         );
-
-
         dashTrailSpawnPosition.y +=
             dashTrailHeightOffset;
-
-
         spawnDashTrailParticles(
             dashTrailSpawnPosition
         );
-
-
-        if (
-            t >= 1
-        ) {
-
-            isDashing =
-                false;
-
-            targetModel.visible =
-                true;
-
+        if (t >= 1) {
+            isDashing = false;
+            targetModel.visible = true;
             updateMovementAnimation();
-
         }
-
     }
-
-
     // ============================================================
     // カメラシェイク
     // ============================================================
-
-    let cameraShakeElapsed =
-        null;
-
-    const cameraShakeDuration =
-        0.35;
-
-    const cameraShakeMagnitude =
-        0.12;
-
-
+    let cameraShakeElapsed = null;
+    const cameraShakeDuration = 0.35;
+    const cameraShakeMagnitude = 0.12;
     function triggerCameraShake() {
-
-        cameraShakeElapsed =
-            0;
-
+        cameraShakeElapsed = 0;
     }
-
-
-    function applyCameraShake(
-        delta
-    ) {
-
+    function applyCameraShake(delta) {
         if (
-            cameraShakeElapsed ===
-            null
+            cameraShakeElapsed === null
         ) {
             return;
         }
-
-
-        cameraShakeElapsed +=
-            delta;
-
-
+        cameraShakeElapsed += delta;
         const t =
             cameraShakeElapsed /
             cameraShakeDuration;
-
-
-        if (
-            t >= 1
-        ) {
-
-            cameraShakeElapsed =
-                null;
-
+        if (t >= 1) {
+            cameraShakeElapsed = null;
             return;
-
         }
-
-
-        const decay =
-            1 - t;
-
-
+        const decay = 1 - t;
         const magnitude =
             cameraShakeMagnitude *
             decay *
             decay;
-
-
         camera.position.x +=
             (
-                Math.random() *
-                    2 -
-                1
+                Math.random() * 2 - 1
             ) *
             magnitude;
-
-
         camera.position.y +=
             (
-                Math.random() *
-                    2 -
-                1
+                Math.random() * 2 - 1
             ) *
             magnitude;
-
-
         camera.position.z +=
             (
-                Math.random() *
-                    2 -
-                1
+                Math.random() * 2 - 1
             ) *
             magnitude;
-
     }
-
-
     // ============================================================
     // 入力状態
     // ============================================================
-
     function hasMoveInput() {
-
         return (
             joystickX !== 0 ||
             joystickY !== 0 ||
@@ -4712,463 +2315,143 @@
             keyState.left ||
             keyState.right
         );
-
     }
-
-
     // ============================================================
     // ジャンプ
     // ============================================================
-
     function jump() {
-
-        if (
-            !mixer ||
-            !actions.jump
-        ) {
-            return;
-        }
-
-
-        if (isJumping) {
-            return;
-        }
-
-
-        if (isDashing) {
-            return;
-        }
-
-
-        if (isCt1Knockback) {
-            return;
-        }
-
-
-        if (
-            isAttacking1 ||
-            isAttacking2
-        ) {
-            return;
-        }
-
-
+        if (!mixer || !actions.jump) return;
+        if (isJumping) return;
+        if (isDashing) return;
+        if (isCt1Knockback) return;
+        if (isAttacking1) return;
         if (
             mgModel &&
             targetModel &&
             !mgIsAttacking
         ) {
-
             const dxToMg =
                 mgModel.position.x -
                 targetModel.position.x;
-
             const dzToMg =
                 mgModel.position.z -
                 targetModel.position.z;
-
-
             const distanceToMg =
                 Math.hypot(
                     dxToMg,
                     dzToMg
                 );
-
-
             if (
                 distanceToMg <=
                 mgJumpAttack2TriggerDistance
             ) {
-
-                mgAttackTriggered =
-                    true;
-
+                mgAttackTriggered = true;
                 playMgAttack2();
-
             }
-
         }
-
-
-        isJumping =
-            true;
-
-
-        jumpFrameCount =
-            0;
-
-
-        jumpShockwaveSpawned =
-            false;
-
-
-        jumpAttackHitApplied =
-            false;
-
-
+        isJumping = true;
+        jumpFrameCount = 0;
+        jumpShockwaveSpawned = false;
+        jumpAttackHitApplied = false;
         const jumpAction =
             actions.jump;
-
-
         if (currentAction) {
-
-            currentAction.fadeOut(
-                0.1
-            );
-
+            currentAction.fadeOut(0.1);
         }
-
-
         jumpAction
             .reset()
             .setLoop(
                 THREE.LoopOnce,
                 1
             );
-
-
-        jumpAction.clampWhenFinished =
-            true;
-
-
+        jumpAction.clampWhenFinished = true;
         jumpAction
             .fadeIn(0.1)
             .play();
-
-
-        currentAction =
-            jumpAction;
-
-
-
+        currentAction = jumpAction;
     }
-
-
     // ============================================================
-    // AT1開始
+    // AT攻撃
     // ============================================================
-
     function playAt1() {
-
-        if (
-            !mixer ||
-            !actions.at1
-        ) {
-            return;
-        }
-
-
-        if (isJumping) {
-            return;
-        }
-
-
-        if (isDashing) {
-            return;
-        }
-
-
-        if (isCt1Knockback) {
-            return;
-        }
-
-
-        if (
-            isAttacking1 ||
-            isAttacking2
-        ) {
-            return;
-        }
-
-
-        isAttacking1 =
-            true;
-
-
-        at1FrameCount =
-            0;
-
-
-        at1HitApplied =
-            false;
-
-
+        if (!mixer || !actions.at1) return;
+        if (isJumping) return;
+        if (isDashing) return;
+        if (isCt1Knockback) return;
+        if (isAttacking1) return;
+        isAttacking1 = true;
+        at1FrameCount = 0;
+        at1HitApplied = false;
         const at1Action =
             actions.at1;
-
-
         if (currentAction) {
-
-            currentAction.fadeOut(
-                0.1
-            );
-
+            currentAction.fadeOut(0.1);
         }
-
-
         at1Action
             .reset()
             .setLoop(
                 THREE.LoopOnce,
                 1
             );
-
-
-        at1Action.clampWhenFinished =
-            true;
-
-
+        at1Action.clampWhenFinished = true;
+        // ★ at1を1.5倍速で再生
         at1Action.setEffectiveTimeScale(
             at1PlaybackSpeed
         );
-
-
         at1Action
             .fadeIn(0.1)
             .play();
-
-
-        currentAction =
-            at1Action;
-
-        initializeAtBoneMotion();
-        at1MotionApplied = false;
-
-
-
+        currentAction = at1Action;
     }
-
-
-    // ============================================================
-    // AT2開始
-    // ============================================================
-
-    function playAt2() {
-
-        if (
-            !mixer ||
-            !actions.at2
-        ) {
-            return;
-        }
-
-
-        if (isJumping) {
-            return;
-        }
-
-
-        if (isDashing) {
-            return;
-        }
-
-
-        if (isCt1Knockback) {
-            return;
-        }
-
-
-        /*
-         * at1中の15フレーム以降から
-         * AT2へ移行する場合のみここを通る。
-         */
-        if (
-            !isAttacking1 &&
-            !isAttacking2
-        ) {
-            return;
-        }
-
-
-        isAttacking1 =
-            false;
-
-        isAttacking2 =
-            true;
-
-
-        at2FrameCount =
-            0;
-
-
-        at2HitApplied =
-            false;
-
-
-        const at2Action =
-            actions.at2;
-
-
-        if (currentAction) {
-
-            currentAction.fadeOut(
-                0.05
-            );
-
-        }
-
-
-        at2Action
-            .reset()
-            .setLoop(
-                THREE.LoopOnce,
-                1
-            );
-
-
-        at2Action.clampWhenFinished =
-            true;
-
-
-        at2Action.setEffectiveTimeScale(
-            1.0
-        );
-
-
-        at2Action
-            .fadeIn(0.05)
-            .play();
-
-
-        currentAction =
-            at2Action;
-
-        initializeAtBoneMotion();
-        at2MotionApplied = false;
-
-
-
-    }
-
-
-    // ============================================================
-    // ATボタン入力
-    // ============================================================
-
-    function handleAtButton() {
-
-        /*
-         * at1再生中
-         *
-         * 15フレーム以降なら
-         * at2へ派生。
-         */
-        if (isAttacking1) {
-
-            if (
-                at1FrameCount >=
-                15
-            ) {
-
-                playAt2();
-
-            }
-
-            return;
-        }
-
-
-        /*
-         * 通常時はat1。
-         */
-        if (
-            !isAttacking2 &&
-            !isJumping &&
-            !isDashing &&
-            !isCt1Knockback
-        ) {
-
-            playAt1();
-
-        }
-
-    }
-
-
     // ============================================================
     // ボタン
     // ============================================================
-
     const jumpButton =
         document.getElementById(
             'jump-button'
         );
-
-
     jumpButton.addEventListener(
         'pointerdown',
         (e) => {
-
             e.preventDefault();
             e.stopPropagation();
-
             jump();
-
         },
-        {
-            passive: false
-        }
+        { passive: false }
     );
-
-
     const dashButton =
         document.getElementById(
             'dash-button'
         );
-
-
     dashButton.addEventListener(
         'pointerdown',
         (e) => {
-
             e.preventDefault();
             e.stopPropagation();
-
             dashForward();
-
         },
-        {
-            passive: false
-        }
+        { passive: false }
     );
-
-
     const atButton =
         document.getElementById(
             'at-button'
         );
-
-
     atButton.addEventListener(
         'pointerdown',
         (e) => {
-
             e.preventDefault();
             e.stopPropagation();
-
-            handleAtButton();
-
+            playAt1();
         },
-        {
-            passive: false
-        }
+        { passive: false }
     );
-
-
     // ============================================================
     // カメラ位置
     // ============================================================
-
     function updateCameraPosition() {
-
-        if (!targetModel) {
-            return;
-        }
-
-
+        if (!targetModel) return;
         const targetPosition =
-            targetModel.position
-                .clone()
+            targetModel.position.clone()
                 .add(
                     new THREE.Vector3(
                         0,
@@ -5177,457 +2460,246 @@
                         0
                     )
                 );
-
-
         const offset =
             new THREE.Vector3()
                 .setFromSpherical(
                     cameraSpherical
                 );
-
-
         camera.position
-            .copy(
-                targetPosition
-            )
-            .add(
-                offset
-            );
-
-
+            .copy(targetPosition)
+            .add(offset);
         camera.lookAt(
             targetPosition
         );
-
     }
-
-
     // ============================================================
     // アナログスティック
     // ============================================================
-
     const joystickContainer =
         document.getElementById(
             'joystick-container'
         );
-
-
     const joystickStick =
         document.getElementById(
             'joystick-stick'
         );
-
-
-    let joystickPointerId =
-        null;
-
-
-    let joystickX =
-        0;
-
-    let joystickY =
-        0;
-
-
-    const joystickRadius =
-        52;
-
-
-    const joystickDeadZone =
-        0.08;
-
-
+    let joystickPointerId = null;
+    let joystickX = 0;
+    let joystickY = 0;
+    const joystickRadius = 52;
+    const joystickDeadZone = 0.08;
     function updateJoystick(
         clientX,
         clientY
     ) {
-
         const rect =
             joystickContainer
                 .getBoundingClientRect();
-
-
         const centerX =
             rect.left +
             rect.width / 2;
-
-
         const centerY =
             rect.top +
             rect.height / 2;
-
-
         let dx =
             clientX -
             centerX;
-
-
         let dy =
             clientY -
             centerY;
-
-
         const distance =
-            Math.hypot(
-                dx,
-                dy
-            );
-
-
+            Math.hypot(dx, dy);
         if (
             distance >
             joystickRadius
         ) {
-
             dx =
-                dx /
-                distance *
+                dx / distance *
                 joystickRadius;
-
             dy =
-                dy /
-                distance *
+                dy / distance *
                 joystickRadius;
-
         }
-
-
         joystickStick.style.transform =
             `translate(${dx}px, ${dy}px)`;
-
-
         joystickX =
-            dx /
-            joystickRadius;
-
-
+            dx / joystickRadius;
         joystickY =
-            dy /
-            joystickRadius;
-
-
+            dy / joystickRadius;
         const normalizedDistance =
             Math.hypot(
                 joystickX,
                 joystickY
             );
-
-
         if (
             normalizedDistance <
             joystickDeadZone
         ) {
-
-            joystickX =
-                0;
-
-            joystickY =
-                0;
-
+            joystickX = 0;
+            joystickY = 0;
         }
-
     }
-
-
     function resetJoystick() {
-
-        joystickPointerId =
-            null;
-
-        joystickX =
-            0;
-
-        joystickY =
-            0;
-
+        joystickPointerId = null;
+        joystickX = 0;
+        joystickY = 0;
         joystickStick.style.transform =
             'translate(0px, 0px)';
-
     }
-
-
-    function handleJoystickStart(
-        e
-    ) {
-
+    function handleJoystickStart(e) {
         e.preventDefault();
         e.stopPropagation();
-
-
         if (
-            joystickPointerId !==
-            null
+            joystickPointerId !== null
         ) {
             return;
         }
-
-
         joystickPointerId =
             e.pointerId;
-
-
         try {
-
             joystickContainer
                 .setPointerCapture(
                     e.pointerId
                 );
-
         } catch (err) {}
-
-
         updateJoystick(
             e.clientX,
             e.clientY
         );
-
     }
-
-
-    function handleJoystickMove(
-        e
-    ) {
-
+    function handleJoystickMove(e) {
         if (
             e.pointerId !==
             joystickPointerId
         ) {
             return;
         }
-
-
         e.preventDefault();
         e.stopPropagation();
-
-
         updateJoystick(
             e.clientX,
             e.clientY
         );
-
     }
-
-
-    function handleJoystickEnd(
-        e
-    ) {
-
+    function handleJoystickEnd(e) {
         if (
             e.pointerId !==
             joystickPointerId
         ) {
             return;
         }
-
-
         e.preventDefault();
         e.stopPropagation();
-
-
         try {
-
             if (
                 joystickContainer
                     .hasPointerCapture(
                         e.pointerId
                     )
             ) {
-
                 joystickContainer
                     .releasePointerCapture(
                         e.pointerId
                     );
-
             }
-
         } catch (err) {}
-
-
         resetJoystick();
-
     }
-
-
     joystickContainer.addEventListener(
         'pointerdown',
         handleJoystickStart,
-        {
-            passive: false
-        }
+        { passive: false }
     );
-
-
     joystickContainer.addEventListener(
         'pointermove',
         handleJoystickMove,
-        {
-            passive: false
-        }
+        { passive: false }
     );
-
-
     joystickContainer.addEventListener(
         'pointerup',
         handleJoystickEnd,
-        {
-            passive: false
-        }
+        { passive: false }
     );
-
-
     joystickContainer.addEventListener(
         'pointercancel',
         handleJoystickEnd,
-        {
-            passive: false
-        }
+        { passive: false }
     );
-
-
     // ============================================================
     // キーボード
     // ============================================================
-
     const keyState = {
-
-        up:
-            false,
-
-        down:
-            false,
-
-        left:
-            false,
-
-        right:
-            false
-
+        up: false,
+        down: false,
+        left: false,
+        right: false
     };
-
-
     window.addEventListener(
         'keydown',
         (e) => {
-
             if (
                 e.key === 'ArrowUp' ||
                 e.key === 'w'
             ) {
-
-                keyState.up =
-                    true;
-
+                keyState.up = true;
             }
-
-
             if (
                 e.key === 'ArrowDown' ||
                 e.key === 's'
             ) {
-
-                keyState.down =
-                    true;
-
+                keyState.down = true;
             }
-
-
             if (
                 e.key === 'ArrowLeft' ||
                 e.key === 'a'
             ) {
-
-                keyState.left =
-                    true;
-
+                keyState.left = true;
             }
-
-
             if (
                 e.key === 'ArrowRight' ||
                 e.key === 'd'
             ) {
-
-                keyState.right =
-                    true;
-
+                keyState.right = true;
             }
-
         }
     );
-
-
     window.addEventListener(
         'keyup',
         (e) => {
-
             if (
                 e.key === 'ArrowUp' ||
                 e.key === 'w'
             ) {
-
-                keyState.up =
-                    false;
-
+                keyState.up = false;
             }
-
-
             if (
                 e.key === 'ArrowDown' ||
                 e.key === 's'
             ) {
-
-                keyState.down =
-                    false;
-
+                keyState.down = false;
             }
-
-
             if (
                 e.key === 'ArrowLeft' ||
                 e.key === 'a'
             ) {
-
-                keyState.left =
-                    false;
-
+                keyState.left = false;
             }
-
-
             if (
                 e.key === 'ArrowRight' ||
                 e.key === 'd'
             ) {
-
-                keyState.right =
-                    false;
-
+                keyState.right = false;
             }
-
         }
     );
-
-
     // ============================================================
     // カメラ操作
     // ============================================================
-
-    let isCameraDragging =
-        false;
-
-    let cameraPointerId =
-        null;
-
-    let previousTouchX =
-        0;
-
-    let previousTouchY =
-        0;
-
-
-    function handleRightScreenStart(
-        e
-    ) {
-
+    let isCameraDragging = false;
+    let cameraPointerId = null;
+    let previousTouchX = 0;
+    let previousTouchY = 0;
+    function handleRightScreenStart(e) {
         if (
             e.target.closest(
                 '#joystick-container'
@@ -5635,8 +2707,6 @@
         ) {
             return;
         }
-
-
         if (
             e.target.closest(
                 '#jump-button'
@@ -5644,8 +2714,6 @@
         ) {
             return;
         }
-
-
         if (
             e.target.closest(
                 '#dash-button'
@@ -5653,8 +2721,6 @@
         ) {
             return;
         }
-
-
         if (
             e.target.closest(
                 '#at-button'
@@ -5662,95 +2728,48 @@
         ) {
             return;
         }
-
-
-        if (
-            isCameraDragging
-        ) {
-            return;
-        }
-
-
+        if (isCameraDragging) return;
         if (
             e.clientX >=
             window.innerWidth / 2
         ) {
-
             e.preventDefault();
-
-
-            isCameraDragging =
-                true;
-
-
+            isCameraDragging = true;
             cameraPointerId =
                 e.pointerId;
-
-
             previousTouchX =
                 e.clientX;
-
-
             previousTouchY =
                 e.clientY;
-
-
             try {
-
                 renderer.domElement
                     .setPointerCapture(
                         e.pointerId
                     );
-
             } catch (err) {}
-
         }
-
     }
-
-
-    function handleRightScreenMove(
-        e
-    ) {
-
-        if (
-            !isCameraDragging
-        ) {
-            return;
-        }
-
-
+    function handleRightScreenMove(e) {
+        if (!isCameraDragging) return;
         if (
             e.pointerId !==
             cameraPointerId
         ) {
             return;
         }
-
-
         e.preventDefault();
-
-
         const deltaX =
             e.clientX -
             previousTouchX;
-
-
         const deltaY =
             e.clientY -
             previousTouchY;
-
-
         cameraSpherical.theta -=
             deltaX *
             cameraTouchSensitivity;
-
-
         cameraSpherical.phi -=
             deltaY *
             cameraTouchSensitivity;
-
-
         cameraSpherical.phi =
             Math.max(
                 minPolarAngle,
@@ -5759,340 +2778,148 @@
                     cameraSpherical.phi
                 )
             );
-
-
         previousTouchX =
             e.clientX;
-
-
         previousTouchY =
             e.clientY;
-
     }
-
-
-    function handleRightScreenEnd(
-        e
-    ) {
-
-        if (
-            !isCameraDragging
-        ) {
-            return;
-        }
-
-
+    function handleRightScreenEnd(e) {
+        if (!isCameraDragging) return;
         if (
             e.pointerId !==
             cameraPointerId
         ) {
             return;
         }
-
-
         e.preventDefault();
-
-
-        isCameraDragging =
-            false;
-
-
+        isCameraDragging = false;
         try {
-
             if (
                 renderer.domElement
                     .hasPointerCapture(
                         e.pointerId
                     )
             ) {
-
                 renderer.domElement
                     .releasePointerCapture(
                         e.pointerId
                     );
-
             }
-
         } catch (err) {}
-
-
-        cameraPointerId =
-            null;
-
+        cameraPointerId = null;
     }
-
-
     window.addEventListener(
         'pointerdown',
         handleRightScreenStart,
-        {
-            passive: false
-        }
+        { passive: false }
     );
-
-
     window.addEventListener(
         'pointermove',
         handleRightScreenMove,
-        {
-            passive: false
-        }
+        { passive: false }
     );
-
-
     window.addEventListener(
         'pointerup',
         handleRightScreenEnd,
-        {
-            passive: false
-        }
+        { passive: false }
     );
-
-
     window.addEventListener(
         'pointercancel',
         handleRightScreenEnd,
-        {
-            passive: false
-        }
+        { passive: false }
     );
-
-
     // ============================================================
     // ct1移動アニメーション
     // ============================================================
-
     function updateMovementAnimation() {
-
-        if (
-            isJumping ||
-            isAttacking1 ||
-            isAttacking2 ||
-            isDashing ||
-            isCt1Knockback
-        ) {
-            return;
-        }
-
-
-        if (
-            hasMoveInput()
-        ) {
-
+        if (hasMoveInput()) {
             if (actions.dash) {
-
-                setAction(
-                    'dash'
-                );
-
+                setAction('dash');
             }
-
         } else {
-
             if (actions.idle) {
-
-                setAction(
-                    'idle'
-                );
-
+                setAction('idle');
             }
-
         }
-
     }
-
-
     // ============================================================
     // ct1移動
     // ============================================================
-
-    function updateModelMovement(
-        delta
-    ) {
-
-        if (!targetModel) {
-            return;
-        }
-
-
-        if (isDashing) {
-            return;
-        }
-
-
-        if (isCt1Knockback) {
-            return;
-        }
-
-
-        if (
-            isAttacking1 ||
-            isAttacking2
-        ) {
-            return;
-        }
-
-
-        let moveX =
-            joystickX;
-
-        let moveY =
-            joystickY;
-
-
-        let currentSpeed =
-            0;
-
-
-        let keyboardX =
-            0;
-
-        let keyboardY =
-            0;
-
-
-        if (keyState.right) {
-            keyboardX += 1;
-        }
-
-
-        if (keyState.left) {
-            keyboardX -= 1;
-        }
-
-
-        if (keyState.up) {
-            keyboardY -= 1;
-        }
-
-
-        if (keyState.down) {
-            keyboardY += 1;
-        }
-
-
+    function updateModelMovement(delta) {
+        if (!targetModel) return;
+        if (isDashing) return;
+        if (isCt1Knockback) return;
+        if (isAttacking1) return;
+        let moveX = joystickX;
+        let moveY = joystickY;
+        let currentSpeed = 0;
+        let keyboardX = 0;
+        let keyboardY = 0;
+        if (keyState.right) keyboardX += 1;
+        if (keyState.left) keyboardX -= 1;
+        if (keyState.up) keyboardY -= 1;
+        if (keyState.down) keyboardY += 1;
         if (
             keyboardX !== 0 ||
             keyboardY !== 0
         ) {
-
             const length =
                 Math.hypot(
                     keyboardX,
                     keyboardY
                 );
-
-
             moveX =
                 keyboardX /
                 length;
-
-
             moveY =
                 keyboardY /
                 length;
-
-
             currentSpeed =
                 maxMoveSpeed;
-
-        }
-
-        else {
-
+        } else {
             if (
                 moveX !== 0 ||
                 moveY !== 0
             ) {
-
                 currentSpeed =
                     maxMoveSpeed;
-
             } else {
-
-                currentSpeed =
-                    0;
-
+                currentSpeed = 0;
             }
-
         }
-
-
         const isMoving =
             currentSpeed > 0;
-
-
         if (isJumping) {
-
             currentSpeed *=
                 jumpMoveSpeedFactor;
-
         }
-
-
         if (!isJumping) {
-
             if (isMoving) {
-
                 if (actions.dash) {
-
-                    setAction(
-                        'dash'
-                    );
-
+                    setAction('dash');
                 }
-
             } else {
-
                 if (actions.idle) {
-
-                    setAction(
-                        'idle'
-                    );
-
+                    setAction('idle');
                 }
-
             }
-
         }
-
-
         if (isMoving) {
-
             const cameraForward =
                 new THREE.Vector3();
-
-
             camera.getWorldDirection(
                 cameraForward
             );
-
-
-            cameraForward.y =
-                0;
-
-
+            cameraForward.y = 0;
             cameraForward.normalize();
-
-
             const cameraRight =
                 new THREE.Vector3();
-
-
             cameraRight.crossVectors(
                 cameraForward,
-                new THREE.Vector3(
-                    0,
-                    1,
-                    0
-                )
+                new THREE.Vector3(0, 1, 0)
             ).normalize();
-
-
             const moveDirection =
                 new THREE.Vector3();
-
-
             moveDirection
                 .addScaledVector(
                     cameraRight,
@@ -6102,446 +2929,215 @@
                     cameraForward,
                     -moveY
                 );
-
-
             if (
-                moveDirection.lengthSq() >
-                0
+                moveDirection.lengthSq() > 0
             ) {
-
                 moveDirection.normalize();
-
             }
-
-
             targetModel.position
                 .addScaledVector(
                     moveDirection,
-                    currentSpeed *
-                        delta
+                    currentSpeed * delta
                 );
-
-
             const targetAngle =
                 Math.atan2(
                     moveDirection.x,
                     moveDirection.z
                 );
-
-
             const targetQuaternion =
                 new THREE.Quaternion();
-
-
             targetQuaternion.setFromAxisAngle(
-                new THREE.Vector3(
-                    0,
-                    1,
-                    0
-                ),
+                new THREE.Vector3(0, 1, 0),
                 targetAngle
             );
-
-
             targetModel.quaternion.slerp(
                 targetQuaternion,
-                rotationSpeed *
-                    delta
+                rotationSpeed * delta
             );
-
         }
-
     }
-
-
     // ============================================================
     // メインループ
     // ============================================================
-
     function animate() {
-
         requestAnimationFrame(
             animate
         );
-
-
         const delta =
             clock.getDelta();
-
-
-        // ========================================================
         // ct1操作
-        // ========================================================
-
         updateModelMovement(
             delta
         );
-
-
-        // ========================================================
         // mg接近・攻撃
-        // ========================================================
-
         updateMgMovement(
             delta
         );
-
-
-        // ========================================================
         // ct1ノックバック
-        // ========================================================
-
         updateCt1Knockback(
             delta
         );
-
-
-        // ========================================================
         // ct1ダッシュ
-        // ========================================================
-
         updateDash(
             delta
         );
-
-
-        // ========================================================
         // ct1距離制限
-        // ========================================================
-
         clampCt1DistanceFromMg();
-
-
-        // ========================================================
         // mg距離ワープ
-        // ========================================================
-
         updateMgDistanceWarp();
-
-
-        // ========================================================
         // パーティクル
-        // ========================================================
-
         updateParticles(
             delta
         );
-
-
-        // ========================================================
         // 斬撃エフェクト
-        // ========================================================
-
         updateSlashEffect(
             delta
         );
-
-
         // ========================================================
         // ct1アニメーション
         // ========================================================
-
         if (mixer) {
-
-            // ボーン由来の実移動はAT1 / AT2のみ。
-            // 実際の移動は各ATの当たり判定フレームで1回だけ行う。
-
             mixer.update(
                 delta
             );
-
-
-            // ----------------------------------------------------
-            // jump
-            // ----------------------------------------------------
-
             if (
                 isJumping &&
                 actions.jump
             ) {
-
                 jumpFrameCount =
                     Math.floor(
                         actions.jump.time *
                         animationFPS
                     );
-
-
                 if (
                     !jumpShockwaveSpawned &&
                     jumpFrameCount >=
-                        shockwaveFrame
+                    shockwaveFrame
                 ) {
-
                     spawnJumpImpactEffects();
-
                     triggerCameraShake();
-
-                    jumpShockwaveSpawned =
-                        true;
-
+                    jumpShockwaveSpawned = true;
                 }
-
-
                 updateCt1JumpAttackHit();
-
-
                 if (
                     jumpFrameCount >=
-                        jumpTransitionFrame &&
+                    jumpTransitionFrame &&
                     hasMoveInput()
                 ) {
-
-                    isJumping =
-                        false;
-
+                    isJumping = false;
                     updateMovementAnimation();
-
                 }
-
             }
-
-
-            // ----------------------------------------------------
-            // at1
-            // ----------------------------------------------------
-
             if (
                 isAttacking1 &&
                 actions.at1
             ) {
-
-                /*
-                 * at1は1.5倍速。
-                 * time自体も1.5倍で進むため、
-                 * time * 30で実フレーム相当になる。
-                 */
+                // ★ at1は1.5倍速なので、
+                //   timeの進行も1.5倍になる。
                 at1FrameCount =
                     Math.floor(
                         actions.at1.time *
                         animationFPS
                     );
-
-
-                if (
-                    !at1MotionApplied &&
-                    at1FrameCount >= at1HitFrameStart
-                ) {
-                    applyAtBoneMotionAtHitFrame();
-                    at1MotionApplied = true;
-                }
-
                 updateCt1At1Hit();
-
             }
-
-
-            // ----------------------------------------------------
-            // at2
-            // ----------------------------------------------------
-
-            if (
-                isAttacking2 &&
-                actions.at2
-            ) {
-
-                /*
-                 * at2は通常速度。
-                 */
-                at2FrameCount =
-                    Math.floor(
-                        actions.at2.time *
-                        animationFPS
-                    );
-
-
-                if (
-                    !at2MotionApplied &&
-                    at2FrameCount >= at2HitFrame
-                ) {
-                    applyAtBoneMotionAtHitFrame();
-                    at2MotionApplied = true;
-                }
-
-                updateCt1At2Hit();
-
-            }
-
         }
-
-
         // ========================================================
         // mgアニメーション
         // ========================================================
-
         if (mgMixer) {
-
             mgMixer.update(
                 delta
             );
-
-
             if (mgIsAttacking) {
-
                 const activeMgAttackAction =
                     currentMgAttackType ===
                     'attack2'
                         ? mgActions.attack2
                         : mgActions.attack1;
-
-
-                if (
-                    activeMgAttackAction
-                ) {
-
+                if (activeMgAttackAction) {
                     mgAttackFrameCount =
                         Math.floor(
                             activeMgAttackAction.time *
                             animationFPS
                         );
-
-
                     if (
                         currentMgAttackType ===
                         'attack1'
                     ) {
-
                         if (
                             !mgCrescentSpawned &&
                             mgAttackFrameCount >=
-                                mgCrescentFrame
+                            mgCrescentFrame
                         ) {
-
                             spawnMgCrescentEffect();
-
-                            mgCrescentSpawned =
-                                true;
-
+                            mgCrescentSpawned = true;
                         }
-
-
                         if (
                             !mgAttackShakeSpawned &&
                             mgAttackFrameCount >=
-                                mgAttackShakeFrame
+                            mgAttackShakeFrame
                         ) {
-
                             triggerCameraShake();
-
-                            mgAttackShakeSpawned =
-                                true;
-
+                            mgAttackShakeSpawned = true;
                         }
-
                     }
-
                 }
-
             }
-
-
             if (mgLeftBone1) {
-
                 mgLeftBone1.rotation.z =
                     mgFixedBoneAngleLeft;
-
             }
-
-
             if (mgRightBone1) {
-
                 mgRightBone1.rotation.z =
                     mgFixedBoneAngleRight;
-
             }
-
         }
-
-
-        // ========================================================
         // mg攻撃当たり判定
-        // ========================================================
-
         updateMgAttackHit(
             delta
         );
-
-
         // ========================================================
         // ct1ジャンプ高さ
         // ========================================================
-
         if (rootBone) {
-
             targetModel.updateMatrixWorld(
                 true
             );
-
-
             rootBone.getWorldPosition(
                 rootBoneWorldPosition
             );
-
-
             jumpHeightOffset =
                 rootBoneWorldPosition.y -
                 rootBoneRestY;
-
         }
-
-
-        // ========================================================
         // カメラ
-        // ========================================================
-
         updateCameraPosition();
-
-
         applyCameraShake(
             delta
         );
-
-
-        // ========================================================
-        // 描画
-        // ========================================================
-
         renderer.render(
             scene,
             camera
         );
-
     }
-
-
     animate();
-
-
     // ============================================================
     // リサイズ
     // ============================================================
-
     window.addEventListener(
         'resize',
         () => {
-
             camera.aspect =
                 window.innerWidth /
                 window.innerHeight;
-
-
             camera.updateProjectionMatrix();
-
-
             renderer.setSize(
                 window.innerWidth,
                 window.innerHeight
             );
-
         }
     );
-
 </script>
-
 </body>
 </html>
