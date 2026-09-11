@@ -278,11 +278,15 @@
         const mgRotationSpeed = 5.0;
 
         // ct1からこの距離までしか近づかない（＝mgが近づける範囲）
-        const mgAttackDistance =2.0; // ※ct1に近づける限界を近づけた（3.0 → 2.0）
+        const mgAttackDistance = 2.0; // ※ct1に近づける限界を近づけた（3.0 → 2.0）
 
         // mgが攻撃（attack1/attack2）を開始する範囲
         // ※近づける範囲（mgAttackDistance）はそのままに、攻撃を開始する範囲だけを広げた
         const mgAttackTriggerDistance = 3.0;
+
+        // ct1がjumpを行った瞬間、mgとの距離がこの範囲以内で、
+        // かつattack1がまだ発動していなければ、その場でattack2を発動する
+        const mgJumpAttack2TriggerDistance = 4.0;
 
         let mgIsMoving = false;
         let mgIsAttacking = false;
@@ -290,10 +294,6 @@
         // 3以内に入った瞬間を一度だけ検出するためのフラグ
         // （3より外に出るとfalseに戻り、再接近時にまた発動できる）
         let mgAttackTriggered = false;
-
-        // ※mgのattack1がまだ再生されていない間にct1がjumpを行ったかどうかのフラグ
-        // trueの状態でmgの攻撃が発動すると、attack1の代わりにattack2が再生される
-        let ct1JumpedBeforeMgAttack = false;
 
         const mgMoveDirection = new THREE.Vector3();
         const mgTargetPosition = new THREE.Vector3();
@@ -421,25 +421,12 @@
 
 
         // ------------------------------------------------------------
-        // attack2がヒットした際の衝撃波エフェクト（強化版・大きめ）
+        // attack2がヒットした際の衝撃波エフェクト（丸いflashのみ・大きめ）
         // ------------------------------------------------------------
         const mgAttack2ShockwaveFlashColor = 0xffe200;
         const mgAttack2ShockwaveFlashDuration = 0.22;
         const mgAttack2ShockwaveFlashRadius = 0.9;
         const mgAttack2ShockwaveFlashMaxScale = 6.0;
-
-        const mgAttack2ShockwaveBurstCount = 60;
-        const mgAttack2ShockwaveBurstMinSize = 0.16;
-        const mgAttack2ShockwaveBurstMaxSize = 0.55;
-        const mgAttack2ShockwaveBurstMinSpeed = 3.0;
-        const mgAttack2ShockwaveBurstMaxSpeed = 8.5;
-        const mgAttack2ShockwaveBurstMinDuration = 0.5;
-        const mgAttack2ShockwaveBurstMaxDuration = 1.05;
-        const mgAttack2ShockwaveBurstGravity = 3.0;
-        const mgAttack2ShockwaveBurstSpread = 0.35;
-
-        const mgAttack2ShockwaveColorA = new THREE.Color(0xffe200);
-        const mgAttack2ShockwaveColorB = new THREE.Color(0xff7a00);
 
 
         // ------------------------------------------------------------
@@ -957,18 +944,18 @@
 
 
         // ============================================================
-        // mg → ct1 への接近・停止・attack1/attack2発動
+        // mg → ct1 への接近・停止・attack1発動
         //
         // ct1との距離が mgAttackTriggerDistance（攻撃を開始する範囲）以下に
-        // なった瞬間に、その場でattack1またはattack2を発動する（＝攻撃発動
-        // のためにmgAttackDistanceまで近づく必要はない）。
+        // なった瞬間に、その場でattack1を発動する（＝攻撃発動のために
+        // mgAttackDistanceまで近づく必要はない）。
         //
         // 一方、攻撃が発動していない間は mgAttackDistance（近づける範囲）
         // より内側には絶対に入らないよう、移動量を境界までにクランプする。
         //
-        // その際、ct1JumpedBeforeMgAttackフラグが立っていれば
-        // （＝mgの攻撃がまだ発動していない間にct1がjumpしていれば）
-        // attack1の代わりにattack2を再生する。
+        // なお、attack2はこの距離ベースの判定とは別に、ct1がjump()を
+        // 行った瞬間に mgJumpAttack2TriggerDistance 以内であれば即座に
+        // 発動する（jump()内のロジックを参照）。
         // ============================================================
         function updateMgMovement(delta) {
 
@@ -983,22 +970,12 @@
 
             // --------------------------------------------------
             // 攻撃を開始する範囲（mgAttackTriggerDistance）以内に入った
-            // 瞬間、attack1またはattack2を発動する
+            // 瞬間、attack1を発動する
             // --------------------------------------------------
             if (!mgAttackTriggered && !mgIsAttacking && distance <= mgAttackTriggerDistance) {
 
                 mgAttackTriggered = true;
-
-                if (ct1JumpedBeforeMgAttack) {
-
-                    ct1JumpedBeforeMgAttack = false;
-                    playMgAttack2();
-
-                } else {
-
-                    playMgAttack1();
-
-                }
+                playMgAttack1();
 
             }
 
@@ -1150,29 +1127,13 @@
 
                 if (currentMgAttackType === 'attack2') {
 
-                    // attack2は大きめの衝撃波エフェクトを出す
+                    // attack2は丸い衝撃波（flash）のみを大きめに出す
                     spawnFlashParticle(flashPosition, {
                         radius: mgAttack2ShockwaveFlashRadius,
                         duration: mgAttack2ShockwaveFlashDuration,
                         maxScale: mgAttack2ShockwaveFlashMaxScale,
                         startOpacity: 1.0,
                         color: mgAttack2ShockwaveFlashColor
-                    });
-
-                    spawnCubeBurst(flashPosition, {
-                        count: mgAttack2ShockwaveBurstCount,
-                        minSize: mgAttack2ShockwaveBurstMinSize,
-                        maxSize: mgAttack2ShockwaveBurstMaxSize,
-                        minSpeed: mgAttack2ShockwaveBurstMinSpeed,
-                        maxSpeed: mgAttack2ShockwaveBurstMaxSpeed,
-                        minDuration: mgAttack2ShockwaveBurstMinDuration,
-                        maxDuration: mgAttack2ShockwaveBurstMaxDuration,
-                        gravity: mgAttack2ShockwaveBurstGravity,
-                        colorA: mgAttack2ShockwaveColorA,
-                        colorB: mgAttack2ShockwaveColorB,
-                        elevationMin: -0.1,
-                        elevationMax: 1.0,
-                        spawnSpread: mgAttack2ShockwaveBurstSpread
                     });
 
                     triggerCameraShake();
@@ -2045,10 +2006,19 @@
             if (isDashing) return;
             if (isCt1Knockback) return; // ノックバック中はジャンプ不可
 
-            // ※mgがまだ攻撃（attack1）を開始していない状態でジャンプした場合、
-            // 次にmgの攻撃が発動する際にattack1の代わりにattack2を再生させる
-            if (!mgIsAttacking) {
-                ct1JumpedBeforeMgAttack = true;
+            // ※mgとの距離がmgJumpAttack2TriggerDistance以内で、かつ
+            // mgがまだ攻撃（attack1）を開始していない場合、その瞬間にattack2を発動する
+            if (mgModel && targetModel && !mgIsAttacking) {
+
+                const dxToMg = mgModel.position.x - targetModel.position.x;
+                const dzToMg = mgModel.position.z - targetModel.position.z;
+                const distanceToMg = Math.hypot(dxToMg, dzToMg);
+
+                if (distanceToMg <= mgJumpAttack2TriggerDistance) {
+                    mgAttackTriggered = true;
+                    playMgAttack2();
+                }
+
             }
 
             isJumping = true;
