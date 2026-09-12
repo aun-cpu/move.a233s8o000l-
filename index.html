@@ -1066,6 +1066,29 @@
         mgMoveDirection.y = 0;
         const distance =
             mgMoveDirection.length();
+        // mgは常にct1の方向を向くようにする（移動・待機・攻撃前後を問わず）
+        if (distance > 0.0001) {
+            const directionToCt1 =
+                mgMoveDirection.clone().normalize();
+            const facingAngle =
+                Math.atan2(
+                    directionToCt1.x,
+                    directionToCt1.z
+                );
+            const facingQuaternion =
+                new THREE.Quaternion();
+            facingQuaternion.setFromAxisAngle(
+                new THREE.Vector3(0, 1, 0),
+                facingAngle
+            );
+            mgModel.quaternion.slerp(
+                facingQuaternion,
+                Math.min(
+                    mgRotationSpeed * delta,
+                    1
+                )
+            );
+        }
         if (
             !mgAttackTriggered &&
             !mgIsAttacking &&
@@ -1106,24 +1129,6 @@
                 moveAmount
             );
         }
-        const targetAngle =
-            Math.atan2(
-                mgMoveDirection.x,
-                mgMoveDirection.z
-            );
-        const targetQuaternion =
-            new THREE.Quaternion();
-        targetQuaternion.setFromAxisAngle(
-            new THREE.Vector3(0, 1, 0),
-            targetAngle
-        );
-        mgModel.quaternion.slerp(
-            targetQuaternion,
-            Math.min(
-                mgRotationSpeed * delta,
-                1
-            )
-        );
         if (mgActions.walk) {
             setMgAction('walk');
         }
@@ -1954,14 +1959,25 @@
     }
     function warpMgInFrontOfCt1() {
         if (!mgModel || !targetModel) return;
+        // ct1の向きではなく、カメラが向いている水平方向を基準にワープ先を決める
         const forward =
-            new THREE.Vector3(0, 0, 1);
-        forward.applyQuaternion(
-            targetModel.quaternion
+            new THREE.Vector3();
+        camera.getWorldDirection(
+            forward
         );
         forward.y = 0;
-        if (forward.lengthSq() > 0) {
+        if (forward.lengthSq() > 0.0001) {
             forward.normalize();
+        } else {
+            forward
+                .set(0, 0, 1)
+                .applyQuaternion(
+                    targetModel.quaternion
+                );
+            forward.y = 0;
+            if (forward.lengthSq() > 0) {
+                forward.normalize();
+            }
         }
         mgModel.position
             .copy(targetModel.position)
