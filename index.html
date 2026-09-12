@@ -17,6 +17,40 @@
         background-color: #1a1a1a;
         touch-action: none;
     }
+    /* ============================================================
+       スマホでは常に横画面として表示する
+       - Orientation Lock対応ブラウザではJSでもlandscapeを要求
+       - iPhone/iPadのSafariなどOrientation Lock非対応環境では
+         画面全体をCSSで90度回転させて横画面を再現する
+       ============================================================ */
+    html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    #game-root {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        transform-origin: center center;
+    }
+
+    @media (orientation: portrait) and (max-width: 1024px) {
+        #game-root {
+            width: 100vw;
+            height: 100vh;
+            left: 50%;
+            top: 50%;
+            right: auto;
+            bottom: auto;
+            inset: auto;
+            transform: translate(-50%, -50%) rotate(90deg);
+        }
+    }
+
     #canvas-container {
         width: 100%;
         height: 100%;
@@ -186,6 +220,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
+<div id="game-root">
 <div id="loading-screen">
     <img src="./loading.jpg" alt="Loading...">
 </div>
@@ -199,12 +234,50 @@
 <div id="at-button">AT</div>
 <script>
     // ============================================================
+    // スマホを横画面に固定
+    // ============================================================
+    const isMobileLikeDevice =
+        window.matchMedia('(max-width: 1024px)').matches ||
+        /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    async function forceLandscapeOrientation() {
+        if (!isMobileLikeDevice) return;
+
+        // 対応ブラウザ（主にAndroid/アプリ内WebView）では
+        // OS側の画面向きもlandscapeへロックする。
+        try {
+            if (screen.orientation && screen.orientation.lock) {
+                await screen.orientation.lock('landscape');
+            }
+        } catch (error) {
+            // iOS Safari等ではlockが拒否/非対応になるため、
+            // 下のCSS回転フォールバックをそのまま使用する。
+        }
+    }
+
+    forceLandscapeOrientation();
+
+    // ============================================================
     // Three.js 基本設定
     // ============================================================
     const scene = new THREE.Scene();
+
+    // CSSで90度回転している端末では、描画上の横幅/高さも入れ替える。
+    function getGameViewportSize() {
+        const portrait =
+            isMobileLikeDevice &&
+            window.matchMedia('(orientation: portrait)').matches;
+
+        return {
+            width: portrait ? window.innerHeight : window.innerWidth,
+            height: portrait ? window.innerWidth : window.innerHeight
+        };
+    }
+
+    const initialViewport = getGameViewportSize();
     const camera = new THREE.PerspectiveCamera(
         75,
-        window.innerWidth / window.innerHeight,
+        initialViewport.width / initialViewport.height,
         0.1,
         1000
     );
@@ -221,8 +294,9 @@
     // ドット絵のような粗いピクセル表現にする。数値が大きいほど粗くなる。
     const pixelationScale = 1.2;
     function applyPixelatedRendererSize() {
-        const displayWidth = window.innerWidth;
-        const displayHeight = window.innerHeight;
+        const viewport = getGameViewportSize();
+        const displayWidth = viewport.width;
+        const displayHeight = viewport.height;
         const lowResWidth = Math.max(
             1,
             Math.floor(displayWidth / pixelationScale)
@@ -4318,13 +4392,18 @@
     window.addEventListener(
         'resize',
         () => {
+            // 回転状態が変わった場合も横画面の論理サイズを維持する。
+            forceLandscapeOrientation();
+
+            const viewport = getGameViewportSize();
             camera.aspect =
-                window.innerWidth /
-                window.innerHeight;
+                viewport.width /
+                viewport.height;
             camera.updateProjectionMatrix();
             applyPixelatedRendererSize();
         }
     );
 </script>
+</div>
 </body>
 </html>
