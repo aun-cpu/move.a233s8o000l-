@@ -1592,7 +1592,7 @@
         );
     }
     // ------------------------------------------------------------
-    // ct1のヒット演出（ジャンプ攻撃・AT攻撃で共通の閃光＋ブロックパーティクル）
+    // ct1のヒット演出（ジャンプ攻撃・AT攻撃で共通の白い閃光＋赤黒ブロック）
     // ------------------------------------------------------------
     const ct1HitFlashColor = 0xffffff;
     const ct1HitFlashDuration = 0.16;
@@ -2650,11 +2650,7 @@
     const atArcSegmentCount = 18;
     let at1ArcRevealedSegment = -1;
     let at2ArcRevealedSegment = -1;
-    // AT半円エフェクトの色は、他のct1ヒット演出と同じ赤×黒のブロックカラーで統一する
-    const atArcFlashColor = 0xffffff;
-    const atArcFlashDuration = 0.18;
-    const atArcFlashRadius = 0.35;
-    const atArcFlashMaxScale = 3.2;
+    // AT半円エフェクトは他のct1ヒット演出と同じ赤×黒のブロックカラーで統一する
     // sideSignが-1なら体の左（後方→前方）、+1なら体の右（後方→前方）を通る半円上の
     // segmentIndex番目の位置にパーティクルを発生させる
     function spawnAtArcSegment(segmentIndex, sideSign) {
@@ -2721,17 +2717,7 @@
         ) {
             outwardDirection.normalize();
         }
-        // 各セグメントに小さな閃光を添えて、線が明るく発光して見えるようにする
-        spawnFlashParticle(
-            position,
-            {
-                radius: atArcFlashRadius,
-                duration: atArcFlashDuration,
-                maxScale: atArcFlashMaxScale,
-                startOpacity: 0.9,
-                color: atArcFlashColor
-            }
-        );
+        // 半円は赤黒ブロックのみで表現し、白い閃光は使わない
         for (
             let i = 0;
             i < atArcParticlesPerSegment;
