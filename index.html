@@ -17,40 +17,6 @@
         background-color: #1a1a1a;
         touch-action: none;
     }
-    /* ============================================================
-       スマホでは常に横画面として表示する
-       - Orientation Lock対応ブラウザではJSでもlandscapeを要求
-       - iPhone/iPadのSafariなどOrientation Lock非対応環境では
-         画面全体をCSSで90度回転させて横画面を再現する
-       ============================================================ */
-    html, body {
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-    }
-
-    #game-root {
-        position: fixed;
-        inset: 0;
-        width: 100vw;
-        height: 100vh;
-        overflow: hidden;
-        transform-origin: center center;
-    }
-
-    @media (orientation: portrait) and (max-width: 1024px) {
-        #game-root {
-            width: 100vw;
-            height: 100vh;
-            left: 50%;
-            top: 50%;
-            right: auto;
-            bottom: auto;
-            inset: auto;
-            transform: translate(-50%, -50%) rotate(90deg);
-        }
-    }
-
     #canvas-container {
         width: 100%;
         height: 100%;
@@ -58,6 +24,46 @@
         top: 0;
         left: 0;
         z-index: 1;
+    }
+    /* ============================================================
+       回転案内オーバーレイ（縦画面で表示し、横画面になったら自動的に隠す）
+       ============================================================ */
+    #rotate-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 5000;
+        background-color: #0d0d0d;
+        color: #ffffff;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-family: sans-serif;
+        padding: 24px;
+    }
+    #rotate-overlay .rotate-icon {
+        font-size: 56px;
+        margin-bottom: 16px;
+        animation: rotateHint 1.6s ease-in-out infinite;
+        display: inline-block;
+    }
+    #rotate-overlay .rotate-text {
+        font-size: 18px;
+        line-height: 1.6;
+        opacity: 0.9;
+    }
+    @keyframes rotateHint {
+        0%, 100% { transform: rotate(0deg); }
+        50% { transform: rotate(90deg); }
+    }
+    @media (orientation: portrait) {
+        #rotate-overlay {
+            display: flex;
+        }
     }
     #loading-screen {
         position: fixed;
@@ -220,7 +226,10 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
-<div id="game-root">
+<div id="rotate-overlay">
+    <div class="rotate-icon">&#128241;</div>
+    <div class="rotate-text">画面を横向きにしてください<br>Please rotate your device to landscape</div>
+</div>
 <div id="loading-screen">
     <img src="./loading.jpg" alt="Loading...">
 </div>
@@ -234,50 +243,77 @@
 <div id="at-button">AT</div>
 <script>
     // ============================================================
-    // スマホを横画面に固定
+    // 画面の向き制御
     // ============================================================
-    const isMobileLikeDevice =
-        window.matchMedia('(max-width: 1024px)').matches ||
-        /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-    async function forceLandscapeOrientation() {
-        if (!isMobileLikeDevice) return;
-
-        // 対応ブラウザ（主にAndroid/アプリ内WebView）では
-        // OS側の画面向きもlandscapeへロックする。
+    // Screen Orientation APIによる横向き固定を試みる。
+    // 多くのモバイルブラウザではフルスクリーン状態でないとlock()が
+    // 拒否されるため、ユーザーの最初のタップ操作をトリガーに
+    // フルスクリーン化とロックを同時に試行する。
+    // 対応していない環境（iOS Safari等）ではAPIが使えないため、
+    // その場合はCSSのrotate-overlay（縦画面時の案内表示）のみで対応する。
+    let orientationLockAttempted = false;
+    function attemptLandscapeLock() {
+        if (orientationLockAttempted) return;
+        orientationLockAttempted = true;
         try {
-            if (screen.orientation && screen.orientation.lock) {
-                await screen.orientation.lock('landscape');
+            const docEl = document.documentElement;
+            const requestFullscreen =
+                docEl.requestFullscreen ||
+                docEl.webkitRequestFullscreen ||
+                docEl.mozRequestFullScreen ||
+                docEl.msRequestFullscreen;
+            const doLock = () => {
+                if (
+                    screen.orientation &&
+                    screen.orientation.lock
+                ) {
+                    screen.orientation
+                        .lock('landscape')
+                        .catch((err) => {
+                            console.info(
+                                '画面回転ロックは利用できません:',
+                                err
+                            );
+                        });
+                }
+            };
+            if (requestFullscreen) {
+                Promise.resolve(
+                    requestFullscreen.call(docEl)
+                )
+                    .then(doLock)
+                    .catch(() => {
+                        // フルスクリーンが拒否された場合でも
+                        // ロック自体は試みる（対応端末もあるため）
+                        doLock();
+                    });
+            } else {
+                doLock();
             }
-        } catch (error) {
-            // iOS Safari等ではlockが拒否/非対応になるため、
-            // 下のCSS回転フォールバックをそのまま使用する。
+        } catch (err) {
+            console.info(
+                '画面回転ロックの試行中にエラーが発生しました:',
+                err
+            );
         }
     }
-
-    forceLandscapeOrientation();
-
+    window.addEventListener(
+        'touchend',
+        attemptLandscapeLock,
+        { once: true, passive: true }
+    );
+    window.addEventListener(
+        'pointerdown',
+        attemptLandscapeLock,
+        { once: true, passive: true }
+    );
     // ============================================================
     // Three.js 基本設定
     // ============================================================
     const scene = new THREE.Scene();
-
-    // CSSで90度回転している端末では、描画上の横幅/高さも入れ替える。
-    function getGameViewportSize() {
-        const portrait =
-            isMobileLikeDevice &&
-            window.matchMedia('(orientation: portrait)').matches;
-
-        return {
-            width: portrait ? window.innerHeight : window.innerWidth,
-            height: portrait ? window.innerWidth : window.innerHeight
-        };
-    }
-
-    const initialViewport = getGameViewportSize();
     const camera = new THREE.PerspectiveCamera(
         75,
-        initialViewport.width / initialViewport.height,
+        window.innerWidth / window.innerHeight,
         0.1,
         1000
     );
@@ -294,9 +330,8 @@
     // ドット絵のような粗いピクセル表現にする。数値が大きいほど粗くなる。
     const pixelationScale = 1.2;
     function applyPixelatedRendererSize() {
-        const viewport = getGameViewportSize();
-        const displayWidth = viewport.width;
-        const displayHeight = viewport.height;
+        const displayWidth = window.innerWidth;
+        const displayHeight = window.innerHeight;
         const lowResWidth = Math.max(
             1,
             Math.floor(displayWidth / pixelationScale)
@@ -4392,18 +4427,13 @@
     window.addEventListener(
         'resize',
         () => {
-            // 回転状態が変わった場合も横画面の論理サイズを維持する。
-            forceLandscapeOrientation();
-
-            const viewport = getGameViewportSize();
             camera.aspect =
-                viewport.width /
-                viewport.height;
+                window.innerWidth /
+                window.innerHeight;
             camera.updateProjectionMatrix();
             applyPixelatedRendererSize();
         }
     );
 </script>
-</div>
 </body>
 </html>
