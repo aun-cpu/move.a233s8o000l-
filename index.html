@@ -1508,6 +1508,72 @@
         at2StepActive = false;
     }
     // ============================================================
+    // ct1攻撃ヒット時のパーティクル
+    // （ジャンプ着地時の弾けるパーティクルをそのまま使用）
+    // ============================================================
+    function spawnCt1AttackHitParticles(position) {
+        spawnCubeBurst(
+            position,
+            {
+                count:
+                    shockwaveSparkCount,
+                minSize:
+                    shockwaveSparkMinSize,
+                maxSize:
+                    shockwaveSparkMaxSize,
+                minSpeed:
+                    shockwaveSparkMinSpeed,
+                maxSpeed:
+                    shockwaveSparkMaxSpeed,
+                minDuration:
+                    shockwaveSparkMinDuration,
+                maxDuration:
+                    shockwaveSparkMaxDuration,
+                gravity:
+                    shockwaveSparkGravity,
+                colorA:
+                    shockwaveSparkColorRed,
+                colorB:
+                    shockwaveSparkColorBlack,
+                elevationMin: -0.1,
+                elevationMax: 1.0,
+                spawnSpread: 0
+            }
+        );
+        spawnCubeBurst(
+            position,
+            {
+                count:
+                    blackBurstCount,
+                minSize:
+                    blackBurstMinSize,
+                maxSize:
+                    blackBurstMaxSize,
+                minSpeed:
+                    blackBurstMinSpeed,
+                maxSpeed:
+                    blackBurstMaxSpeed,
+                minDuration:
+                    blackBurstMinDuration,
+                maxDuration:
+                    blackBurstMaxDuration,
+                gravity:
+                    blackBurstGravity,
+                colorA:
+                    blackBurstColorDark,
+                colorB:
+                    blackBurstColorBlack,
+                elevationMin:
+                    blackBurstElevationMin,
+                elevationMax:
+                    blackBurstElevationMax,
+                spawnSpread:
+                    blackBurstSpawnSpread
+            }
+        );
+    }
+
+    // ============================================================
     // ct1 AT攻撃ヒット判定
     // ============================================================
     function updateCt1At1Hit() {
@@ -3007,113 +3073,6 @@
         }
     }
     // ============================================================
-    // ct1攻撃ヒットパーティクル（AT2パーティクルを共通使用）
-    // ============================================================
-    function spawnCt1AttackHitParticles(position) {
-        if (!position) return;
-
-        const particleCount =
-            atArcParticlesPerSegment * 6;
-
-        for (let i = 0; i < particleCount; i++) {
-            const angle =
-                Math.random() * Math.PI * 2;
-            const radialDirection =
-                new THREE.Vector3(
-                    Math.cos(angle),
-                    randomRange(-0.15, 0.65),
-                    Math.sin(angle)
-                ).normalize();
-
-            const size =
-                atArcSegmentSize +
-                randomRange(
-                    -atArcSegmentSizeVariance,
-                    atArcSegmentSizeVariance
-                );
-            const dimensions =
-                new THREE.Vector3(
-                    Math.max(size, 0.05),
-                    Math.max(
-                        size * randomRange(0.5, 0.9),
-                        0.05
-                    ),
-                    Math.max(
-                        size * randomRange(0.2, 0.4),
-                        0.03
-                    )
-                );
-
-            const color =
-                shockwaveSparkColorRed
-                    .clone()
-                    .lerp(
-                        shockwaveSparkColorBlack,
-                        Math.random()
-                    );
-            const material =
-                new THREE.MeshBasicMaterial({
-                    color: color,
-                    transparent: true,
-                    opacity: 1.0,
-                    side: THREE.DoubleSide,
-                    depthWrite: false,
-                    blending:
-                        THREE.AdditiveBlending
-                });
-            const mesh =
-                new THREE.Mesh(
-                    sharedCubeGeometry,
-                    material
-                );
-            mesh.scale.copy(dimensions);
-            mesh.position.copy(position);
-            mesh.position.x += randomRange(-0.12, 0.12);
-            mesh.position.y += randomRange(-0.12, 0.12);
-            mesh.position.z += randomRange(-0.12, 0.12);
-            mesh.rotation.set(
-                Math.random() * Math.PI * 2,
-                Math.random() * Math.PI * 2,
-                Math.random() * Math.PI * 2
-            );
-            scene.add(mesh);
-
-            const velocity =
-                radialDirection.multiplyScalar(
-                    randomRange(
-                        atArcParticleMinSpeed,
-                        atArcParticleMaxSpeed
-                    )
-                );
-            velocity.y += randomRange(0, 0.6);
-
-            particles.push({
-                kind: 'cube',
-                mesh: mesh,
-                elapsed: 0,
-                duration:
-                    randomRange(
-                        atArcParticleMinDuration,
-                        atArcParticleMaxDuration
-                    ),
-                velocity: velocity,
-                angularVelocity:
-                    new THREE.Vector3(
-                        randomRange(-3, 3),
-                        randomRange(-3, 3),
-                        randomRange(-3, 3)
-                    ),
-                gravity:
-                    atArcParticleGravity,
-                startOpacity: 1.0,
-                baseScale: dimensions,
-                startScale: 1.0
-            });
-        }
-        capParticles();
-    }
-
-    // ============================================================
     // ダッシュ
     // ============================================================
     let isDashing = false;
@@ -4074,6 +4033,8 @@
                     jumpFrameCount >=
                     shockwaveFrame
                 ) {
+                    spawnJumpImpactEffects();
+                    triggerCameraShake();
                     jumpShockwaveSpawned = true;
                 }
                 updateCt1JumpAttackHit();
