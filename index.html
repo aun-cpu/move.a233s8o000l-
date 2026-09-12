@@ -1258,10 +1258,7 @@
             return;
         }
         jumpAttackHitApplied = true;
-        spawnJumpHitImpactEffect(
-            attackPosition
-        );
-        warpMgAwayFromCt1();
+        triggerCameraShake();
     }
     // ============================================================
     // at1/at2 前進ステップ（滑らかな移動）
@@ -1407,10 +1404,7 @@
             return;
         }
         at1HitApplied = true;
-        spawnJumpHitImpactEffect(
-            attackPosition
-        );
-        warpMgAwayFromCt1();
+        triggerCameraShake();
     }
     // ============================================================
     // ct1 AT2攻撃ヒット判定
@@ -1471,10 +1465,7 @@
         }
 
         at2HitApplied = true;
-        spawnJumpHitImpactEffect(
-            attackPosition
-        );
-        warpMgAwayFromCt1();
+        triggerCameraShake();
     }
     // ============================================================
     // ジャンプ攻撃ヒット演出
@@ -3289,10 +3280,10 @@
                         animationFPS
                     );
 
-                // at1の15フレーム目に、その時点でct1が向いている方向へ滑らかに1進む。
+                // at1のヒット判定開始フレームで、その時点でct1が向いている方向へ滑らかに1進む（従来の15フレームより早める）。
                 if (
                     !at1ForwardStepApplied &&
-                    at1FrameCount >= 15
+                    at1FrameCount >= at1HitFrameStart
                 ) {
                     startAtForwardStep(
                         'at1',
