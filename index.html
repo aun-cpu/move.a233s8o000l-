@@ -2501,63 +2501,19 @@
         if (!targetModel) return;
         const origin =
             getShockwaveOriginPosition();
-        spawnCubeBurst(
+        spawnFlashParticle(
             origin,
             {
-                count:
-                    shockwaveSparkCount,
-                minSize:
-                    shockwaveSparkMinSize,
-                maxSize:
-                    shockwaveSparkMaxSize,
-                minSpeed:
-                    shockwaveSparkMinSpeed,
-                maxSpeed:
-                    shockwaveSparkMaxSpeed,
-                minDuration:
-                    shockwaveSparkMinDuration,
-                maxDuration:
-                    shockwaveSparkMaxDuration,
-                gravity:
-                    shockwaveSparkGravity,
-                colorA:
-                    shockwaveSparkColorRed,
-                colorB:
-                    shockwaveSparkColorBlack,
-                elevationMin: -0.1,
-                elevationMax: 1.0,
-                spawnSpread: 0
-            }
-        );
-        spawnCubeBurst(
-            origin,
-            {
-                count:
-                    blackBurstCount,
-                minSize:
-                    blackBurstMinSize,
-                maxSize:
-                    blackBurstMaxSize,
-                minSpeed:
-                    blackBurstMinSpeed,
-                maxSpeed:
-                    blackBurstMaxSpeed,
-                minDuration:
-                    blackBurstMinDuration,
-                maxDuration:
-                    blackBurstMaxDuration,
-                gravity:
-                    blackBurstGravity,
-                colorA:
-                    blackBurstColorDark,
-                colorB:
-                    blackBurstColorBlack,
-                elevationMin:
-                    blackBurstElevationMin,
-                elevationMax:
-                    blackBurstElevationMax,
-                spawnSpread:
-                    blackBurstSpawnSpread
+                radius:
+                    shockwaveFlashRadius,
+                duration:
+                    shockwaveFlashDuration,
+                maxScale:
+                    shockwaveFlashMaxScale,
+                startOpacity:
+                    shockwaveFlashMaxOpacity,
+                color:
+                    shockwaveFlashColor
             }
         );
     }
@@ -3074,7 +3030,7 @@
             at2ArcRevealedSegment++;
             spawnAtArcSegment(
                 at2ArcRevealedSegment,
-                -1
+                1
             );
         }
     }
