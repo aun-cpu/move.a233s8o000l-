@@ -1305,6 +1305,19 @@
         if (forward.lengthSq() > 0) {
             forward.normalize();
         }
+        // ct1の前方にmgがいる場合のみ判定対象にする
+        const jumpFrontDx =
+            mgModel.position.x -
+            targetModel.position.x;
+        const jumpFrontDz =
+            mgModel.position.z -
+            targetModel.position.z;
+        const jumpFrontDot =
+            forward.x * jumpFrontDx +
+            forward.z * jumpFrontDz;
+        if (jumpFrontDot <= 0) {
+            return;
+        }
         const attackPosition =
             targetModel.position.clone();
         attackPosition.y += jumpHeightOffset;
@@ -1450,6 +1463,19 @@
         if (forward.lengthSq() > 0) {
             forward.normalize();
         }
+        // ct1の前方にmgがいる場合のみ判定対象にする
+        const at1FrontDx =
+            mgModel.position.x -
+            targetModel.position.x;
+        const at1FrontDz =
+            mgModel.position.z -
+            targetModel.position.z;
+        const at1FrontDot =
+            forward.x * at1FrontDx +
+            forward.z * at1FrontDz;
+        if (at1FrontDot <= 0) {
+            return;
+        }
         const attackPosition =
             targetModel.position.clone();
         attackPosition.y +=
@@ -1505,6 +1531,20 @@
         forward.y = 0;
         if (forward.lengthSq() > 0) {
             forward.normalize();
+        }
+
+        // ct1の前方にmgがいる場合のみ判定対象にする
+        const at2FrontDx =
+            mgModel.position.x -
+            targetModel.position.x;
+        const at2FrontDz =
+            mgModel.position.z -
+            targetModel.position.z;
+        const at2FrontDot =
+            forward.x * at2FrontDx +
+            forward.z * at2FrontDz;
+        if (at2FrontDot <= 0) {
+            return;
         }
 
         const attackPosition =
