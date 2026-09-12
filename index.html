@@ -468,10 +468,6 @@
     // ------------------------------------------------------------
     // ジャンプ攻撃ヒット演出
     // ------------------------------------------------------------
-    const jumpHitImpactFlashColor = 0xffffff;
-    const jumpHitImpactFlashDuration = 0.15;
-    const jumpHitImpactFlashRadius = 0.5;
-    const jumpHitImpactFlashMaxScale = 3.5;
     const jumpHitImpactBurstCount = 45;
     const jumpHitImpactMinSize = 0.12;
     const jumpHitImpactMaxSize = 0.5;
@@ -492,17 +488,9 @@
     // ------------------------------------------------------------
     // ノックバックフラッシュ
     // ------------------------------------------------------------
-    const knockbackFlashColor = 0xffe200;
-    const knockbackFlashDuration = 0.15;
-    const knockbackFlashRadius = 0.4;
-    const knockbackFlashMaxScale = 3.0;
     // ------------------------------------------------------------
     // attack2衝撃波
     // ------------------------------------------------------------
-    const mgAttack2ShockwaveFlashColor = 0xffe200;
-    const mgAttack2ShockwaveFlashDuration = 0.22;
-    const mgAttack2ShockwaveFlashRadius = 0.9;
-    const mgAttack2ShockwaveFlashMaxScale = 6.0;
     // ------------------------------------------------------------
     // attack1 三日月エフェクト
     // ------------------------------------------------------------
@@ -1219,44 +1207,33 @@
         ) {
             mgAttackHitApplied = true;
             applyCt1Knockback(dx, dz);
-            const flashPosition =
-                mgAttackHitPosition.clone();
-            flashPosition.y += 1.0;
-            if (
-                currentMgAttackType ===
-                'attack2'
-            ) {
-                spawnFlashParticle(
-                    flashPosition,
-                    {
-                        radius:
-                            mgAttack2ShockwaveFlashRadius,
-                        duration:
-                            mgAttack2ShockwaveFlashDuration,
-                        maxScale:
-                            mgAttack2ShockwaveFlashMaxScale,
-                        startOpacity: 1.0,
-                        color:
-                            mgAttack2ShockwaveFlashColor
-                    }
+            const hitDirection =
+                new THREE.Vector3(
+                    targetModel.position.x -
+                        mgAttackHitPosition.x,
+                    0,
+                    targetModel.position.z -
+                        mgAttackHitPosition.z
                 );
-                triggerCameraShake();
-            } else {
-                spawnFlashParticle(
-                    flashPosition,
-                    {
-                        radius:
-                            knockbackFlashRadius,
-                        duration:
-                            knockbackFlashDuration,
-                        maxScale:
-                            knockbackFlashMaxScale,
-                        startOpacity: 1.0,
-                        color:
-                            knockbackFlashColor
-                    }
+
+            const hitImpactPosition =
+                targetModel.position.clone();
+
+            if (hitDirection.lengthSq() > 0.0001) {
+                hitDirection.normalize();
+                hitImpactPosition.addScaledVector(
+                    hitDirection,
+                    -ct1HitboxRadius
                 );
             }
+
+            hitImpactPosition.y += 1.0;
+
+            spawnAttackHitImpactEffect(
+                hitImpactPosition,
+                hitDirection
+            );
+            triggerCameraShake();
         }
     }
     // ============================================================
@@ -1416,6 +1393,39 @@
             return;
         }
         jumpAttackHitApplied = true;
+
+        const hitDirection =
+            new THREE.Vector3(
+                attackPosition.x -
+                    mgModel.position.x,
+                0,
+                attackPosition.z -
+                    mgModel.position.z
+            );
+
+        const hitImpactPosition =
+            mgModel.position.clone();
+
+        if (hitDirection.lengthSq() > 0.0001) {
+            hitDirection.normalize();
+            hitImpactPosition.addScaledVector(
+                hitDirection,
+                mgBodyRadius
+            );
+        }
+
+        hitImpactPosition.y =
+            THREE.MathUtils.clamp(
+                attackPosition.y,
+                mgModel.position.y,
+                mgModel.position.y +
+                    mgHitboxHeight
+            );
+
+        spawnAttackHitImpactEffect(
+            hitImpactPosition,
+            hitDirection
+        );
         triggerCameraShake();
     }
     // ============================================================
@@ -1575,6 +1585,39 @@
             return;
         }
         at1HitApplied = true;
+
+        const hitDirection =
+            new THREE.Vector3(
+                attackPosition.x -
+                    mgModel.position.x,
+                0,
+                attackPosition.z -
+                    mgModel.position.z
+            );
+
+        const hitImpactPosition =
+            mgModel.position.clone();
+
+        if (hitDirection.lengthSq() > 0.0001) {
+            hitDirection.normalize();
+            hitImpactPosition.addScaledVector(
+                hitDirection,
+                mgBodyRadius
+            );
+        }
+
+        hitImpactPosition.y =
+            THREE.MathUtils.clamp(
+                attackPosition.y,
+                mgModel.position.y,
+                mgModel.position.y +
+                    mgHitboxHeight
+            );
+
+        spawnAttackHitImpactEffect(
+            hitImpactPosition,
+            hitDirection
+        );
         triggerCameraShake();
     }
     // ============================================================
@@ -1650,62 +1693,63 @@
         }
 
         at2HitApplied = true;
-        triggerCameraShake();
-    }
-    // ============================================================
-    // ジャンプ攻撃ヒット演出
-    // ============================================================
-    function spawnJumpHitImpactEffect(
-        attackPosition
-    ) {
-        if (!mgModel) return;
-        const impactDirection =
+
+        const hitDirection =
             new THREE.Vector3(
                 attackPosition.x -
-                mgModel.position.x,
+                    mgModel.position.x,
                 0,
                 attackPosition.z -
-                mgModel.position.z
+                    mgModel.position.z
             );
-        if (
-            impactDirection.lengthSq() >
-            0.0001
-        ) {
-            impactDirection.normalize();
-        } else {
-            impactDirection.set(
-                0,
-                0,
-                1
+
+        const hitImpactPosition =
+            mgModel.position.clone();
+
+        if (hitDirection.lengthSq() > 0.0001) {
+            hitDirection.normalize();
+            hitImpactPosition.addScaledVector(
+                hitDirection,
+                mgBodyRadius
             );
         }
-        const impactPosition =
-            mgModel.position.clone()
-                .addScaledVector(
-                    impactDirection,
-                    mgBodyRadius
-                );
-        impactPosition.y =
+
+        hitImpactPosition.y =
             THREE.MathUtils.clamp(
                 attackPosition.y,
                 mgModel.position.y,
                 mgModel.position.y +
-                mgHitboxHeight
+                    mgHitboxHeight
             );
-        spawnFlashParticle(
-            impactPosition,
-            {
-                radius:
-                    jumpHitImpactFlashRadius,
-                duration:
-                    jumpHitImpactFlashDuration,
-                maxScale:
-                    jumpHitImpactFlashMaxScale,
-                startOpacity: 1.0,
-                color:
-                    jumpHitImpactFlashColor
-            }
+
+        spawnAttackHitImpactEffect(
+            hitImpactPosition,
+            hitDirection
         );
+        triggerCameraShake();
+    }
+    // ============================================================
+    // 全攻撃共通ヒット演出
+    // ============================================================
+    function spawnAttackHitImpactEffect(
+        impactPosition,
+        impactDirection
+    ) {
+        if (!impactPosition) return;
+
+        const direction =
+            impactDirection
+                ? impactDirection.clone()
+                : new THREE.Vector3(0, 0, 1);
+
+        direction.y = 0;
+
+        if (direction.lengthSq() > 0.0001) {
+            direction.normalize();
+        } else {
+            direction.set(0, 0, 1);
+        }
+
         spawnCubeBurst(
             impactPosition,
             {
@@ -1735,6 +1779,7 @@
             }
         );
     }
+
     // ============================================================
     // mgワープ
     // ============================================================
@@ -2998,7 +3043,8 @@
         ) {
             at2ArcRevealedSegment++;
             spawnAtArcSegment(
-                at2ArcRevealedSegment,
+                atArcSegmentCount - 1 -
+                    at2ArcRevealedSegment,
                 1
             );
         }
