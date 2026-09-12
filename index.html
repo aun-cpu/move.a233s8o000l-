@@ -25,6 +25,11 @@
         left: 0;
         z-index: 1;
     }
+    #canvas-container canvas {
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+        image-rendering: crisp-edges;
+    }
     #joystick-container {
         position: absolute;
         left: 30px;
@@ -164,9 +169,31 @@
         0.1,
         1000
     );
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const renderer = new THREE.WebGLRenderer({ antialias: false });
+    // ============================================================
+    // ピクセルアート風レンダリング
+    // ============================================================
+    // 実際の描画解像度を落とし、CSSで画面いっぱいに拡大表示することで
+    // ドット絵のような粗いピクセル表現にする。数値が大きいほど粗くなる。
+    const pixelationScale = 4;
+    function applyPixelatedRendererSize() {
+        const displayWidth = window.innerWidth;
+        const displayHeight = window.innerHeight;
+        const lowResWidth = Math.max(
+            1,
+            Math.floor(displayWidth / pixelationScale)
+        );
+        const lowResHeight = Math.max(
+            1,
+            Math.floor(displayHeight / pixelationScale)
+        );
+        renderer.setPixelRatio(1);
+        // 第3引数falseでcanvasのCSSサイズは変更せず、描画バッファのみ縮小する
+        renderer.setSize(lowResWidth, lowResHeight, false);
+        renderer.domElement.style.width = displayWidth + 'px';
+        renderer.domElement.style.height = displayHeight + 'px';
+    }
+    applyPixelatedRendererSize();
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.95;
@@ -3588,10 +3615,7 @@
                 window.innerWidth /
                 window.innerHeight;
             camera.updateProjectionMatrix();
-            renderer.setSize(
-                window.innerWidth,
-                window.innerHeight
-            );
+            applyPixelatedRendererSize();
         }
     );
 </script>
