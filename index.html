@@ -3729,10 +3729,14 @@
                 dy / distance *
                 joystickRadius;
         }
+        // スティックの表示だけを左に90°回転。
+        // 縦持ち時に物理的な「上」入力が画面上の「左」へ動いて見えるようにする。
+        const displayX = dy;
+        const displayY = -dx;
         joystickStick.style.transform =
-            `translate(${dx}px, ${dy}px)`;
-        // スマホ縦持ち時のスティック入力を、ゲーム内の横向き座標系へ
-        // 90°右回転してから移動処理へ渡す。
+            `translate(${displayX}px, ${displayY}px)`;
+
+        // ゲーム内の移動入力も同じ向きに90°右回転。
         // 物理的に「上」へ入力 → ゲーム内では「左」へ進む。
         const rawJoystickX = dx / joystickRadius;
         const rawJoystickY = dy / joystickRadius;
