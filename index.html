@@ -2547,7 +2547,14 @@
         if (!targetModel) return;
         if (isDashing || isJumping) return;
         if (isCt1Knockback) return;
-        if (isAttacking1 || isAttacking2) return;
+        if (isAttacking1 || isAttacking2) {
+            isAttacking1 = false;
+            isAttacking2 = false;
+            cancelAtForwardSteps();
+            if (currentAction) {
+                currentAction.fadeOut(0.1);
+            }
+        }
         const forward =
             new THREE.Vector3(0, 0, 1);
         forward.applyQuaternion(
@@ -2666,7 +2673,11 @@
         if (isJumping) return;
         if (isDashing) return;
         if (isCt1Knockback) return;
-        if (isAttacking1) return;
+        if (isAttacking1 || isAttacking2) {
+            isAttacking1 = false;
+            isAttacking2 = false;
+            cancelAtForwardSteps();
+        }
         if (
             mgModel &&
             targetModel &&
