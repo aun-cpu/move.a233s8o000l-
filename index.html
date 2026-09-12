@@ -1512,6 +1512,7 @@
     // （ジャンプ着地時の弾けるパーティクルをそのまま使用）
     // ============================================================
     function spawnCt1AttackHitParticles(position) {
+        if (!position) return;
         spawnCubeBurst(
             position,
             {
@@ -3068,7 +3069,7 @@
             at2ArcRevealedSegment++;
             spawnAtArcSegment(
                 at2ArcRevealedSegment,
-                -1
+                1
             );
         }
     }
