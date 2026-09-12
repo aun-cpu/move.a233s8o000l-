@@ -310,6 +310,9 @@
         renderer.setSize(lowResWidth, lowResHeight, false);
         renderer.domElement.style.width = displayWidth + 'px';
         renderer.domElement.style.height = displayHeight + 'px';
+
+        // ポストプロセス用バッファも同じ低解像度で作り直す
+        createPostProcessPipeline(lowResWidth, lowResHeight);
     }
     applyPixelatedRendererSize();
     renderer.outputEncoding = THREE.sRGBEncoding;
@@ -527,6 +530,97 @@
     const atAttackForwardStepDistance = 1.0;
     const rotationSpeed = 10.0;
     const cameraTouchSensitivity = 0.005;
+    // ============================================================
+    // ポストプロセス（ドット絵感を強調する色調補正）
+    // ============================================================
+    let postProcessRenderTarget = null;
+    let postProcessScene = null;
+    let postProcessCamera = null;
+    let postProcessMaterial = null;
+
+    function createPostProcessPipeline(width, height) {
+        if (postProcessRenderTarget) {
+            postProcessRenderTarget.dispose();
+        }
+        postProcessRenderTarget = new THREE.WebGLRenderTarget(width, height, {
+            minFilter: THREE.NearestFilter,
+            magFilter: THREE.NearestFilter,
+            format: THREE.RGBAFormat
+        });
+
+        if (!postProcessScene) {
+            postProcessScene = new THREE.Scene();
+            postProcessCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+            postProcessMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    tDiffuse: { value: null },
+                    uPosterizeLevels: { value: 6.0 },
+                    uContrast: { value: 1.18 },
+                    uSaturation: { value: 1.25 },
+                    uDitherStrength: { value: 0.035 }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = vec4(position.xy, 0.0, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D tDiffuse;
+                    uniform float uPosterizeLevels;
+                    uniform float uContrast;
+                    uniform float uSaturation;
+                    uniform float uDitherStrength;
+                    varying vec2 vUv;
+
+                    float ditherPattern(vec2 fragCoord) {
+                        mat4 bayer = mat4(
+                             0.0,  8.0,  2.0, 10.0,
+                            12.0,  4.0, 14.0,  6.0,
+                             3.0, 11.0,  1.0,  9.0,
+                            15.0,  7.0, 13.0,  5.0
+                        ) / 16.0;
+                        int x = int(mod(fragCoord.x, 4.0));
+                        int y = int(mod(fragCoord.y, 4.0));
+                        return bayer[y][x];
+                    }
+
+                    void main() {
+                        vec4 texel = texture2D(tDiffuse, vUv);
+                        vec3 color = texel.rgb;
+
+                        color = (color - 0.5) * uContrast + 0.5;
+
+                        float luma = dot(color, vec3(0.299, 0.587, 0.114));
+                        color = mix(vec3(luma), color, uSaturation);
+
+                        float dither =
+                            (ditherPattern(gl_FragCoord.xy) - 0.5)
+                            * uDitherStrength;
+                        color += dither;
+
+                        color = floor(
+                            color * uPosterizeLevels + 0.5
+                        ) / uPosterizeLevels;
+
+                        gl_FragColor = vec4(
+                            clamp(color, 0.0, 1.0),
+                            texel.a
+                        );
+                    }
+                `,
+                depthTest: false,
+                depthWrite: false
+            });
+            const quad = new THREE.Mesh(
+                new THREE.PlaneGeometry(2, 2),
+                postProcessMaterial
+            );
+            postProcessScene.add(quad);
+        }
+    }
+
     // ============================================================
     // GLTF Loader
     // ============================================================
@@ -4396,9 +4490,20 @@
         applyCameraShake(
             delta
         );
+        // 低解像度バッファにシーンを描画
+        renderer.setRenderTarget(postProcessRenderTarget);
         renderer.render(
             scene,
             camera
+        );
+
+        // 色調補正パスを通して画面に出力
+        renderer.setRenderTarget(null);
+        postProcessMaterial.uniforms.tDiffuse.value =
+            postProcessRenderTarget.texture;
+        renderer.render(
+            postProcessScene,
+            postProcessCamera
         );
     }
     animate();
