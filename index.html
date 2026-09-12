@@ -341,6 +341,10 @@
     let slashSourceNode = null;
     const rightWristBoneNamePattern =
         /(right.*hand|right.*wrist|r[_\.]?hand\b|hand[_\.]?r\b|wrist.*r\b|r.*wrist|righthand|rightwrist|右手首|右手首関節|みぎてくび)/i;
+    let at1SourceBone = null; // 右親指1（AT1エフェクト起点ボーン）
+    let at2SourceBone = null; // 左親指1（AT2エフェクト起点ボーン）
+    const at1SourceWorldPosition = new THREE.Vector3();
+    const at2SourceWorldPosition = new THREE.Vector3();
     let rootBoneRestY = 0;
     let jumpHeightOffset = 0;
     const rootBoneWorldPosition = new THREE.Vector3();
@@ -882,11 +886,43 @@
                         child.name
                     );
                 }
+                if (
+                    !at1SourceBone &&
+                    child.isBone &&
+                    child.name === '右親指1'
+                ) {
+                    at1SourceBone = child;
+                    console.info(
+                        '[AT1エフェクト] 右親指1ボーンを検出:',
+                        child.name
+                    );
+                }
+                if (
+                    !at2SourceBone &&
+                    child.isBone &&
+                    child.name === '左親指1'
+                ) {
+                    at2SourceBone = child;
+                    console.info(
+                        '[AT2エフェクト] 左親指1ボーンを検出:',
+                        child.name
+                    );
+                }
             });
             if (!slashSourceNode) {
                 slashSourceNode = rootBone;
                 console.warn(
                     '[斬撃エフェクト] 右手首らしき名前のボーンが見つからなかったため、rootBoneにフォールバックしました。'
+                );
+            }
+            if (!at1SourceBone) {
+                console.warn(
+                    '[AT1エフェクト] 右親指1ボーンが見つからなかったため、従来の位置計算にフォールバックします。'
+                );
+            }
+            if (!at2SourceBone) {
+                console.warn(
+                    '[AT2エフェクト] 左親指1ボーンが見つからなかったため、従来の位置計算にフォールバックします。'
                 );
             }
             if (rootBone) {
@@ -2509,7 +2545,7 @@
         );
     }
     // ============================================================
-    // AT攻撃エフェクト（at1:右から中央前へ／at2:左から中央前へ）
+    // AT攻撃エフェクト（at1:右親指1から中央前へ／at2:左親指1から中央前へ）
     // ============================================================
     const atSlashSpawnCountPerFrame = 4;
     const atSlashMinSize = 0.12;
@@ -2524,7 +2560,7 @@
     const atSlashHeight =
         targetHeightOffset * 0.6;
     const atSlashForwardTargetDistance = 1.4;
-    // sideSignが+1なら右、-1なら左を起点にする
+    // sideSignが+1なら右、-1なら左を起点にする（ボーンが見つからない場合のフォールバック用）
     function getAtSlashOrigin(sideSign) {
         const right =
             new THREE.Vector3(1, 0, 0);
@@ -2726,7 +2762,7 @@
         }
         capParticles();
     }
-    // at1: 右から中央前へ流れる
+    // at1: 右親指1ボーンから中央前へ流れる
     function updateAt1SlashEffect(
         delta
     ) {
@@ -2736,8 +2772,16 @@
         ) {
             return;
         }
-        const origin =
-            getAtSlashOrigin(1);
+        let origin;
+        if (at1SourceBone) {
+            at1SourceBone.getWorldPosition(
+                at1SourceWorldPosition
+            );
+            origin = at1SourceWorldPosition;
+        } else {
+            origin =
+                getAtSlashOrigin(1);
+        }
         const target =
             getAtSlashTarget();
         spawnConvergingCubeBurst(
@@ -2769,7 +2813,7 @@
             }
         );
     }
-    // at2: 左から中央前へ流れる
+    // at2: 左親指1ボーンから中央前へ流れる
     function updateAt2SlashEffect(
         delta
     ) {
@@ -2779,8 +2823,16 @@
         ) {
             return;
         }
-        const origin =
-            getAtSlashOrigin(-1);
+        let origin;
+        if (at2SourceBone) {
+            at2SourceBone.getWorldPosition(
+                at2SourceWorldPosition
+            );
+            origin = at2SourceWorldPosition;
+        } else {
+            origin =
+                getAtSlashOrigin(-1);
+        }
         const target =
             getAtSlashTarget();
         spawnConvergingCubeBurst(
@@ -3742,11 +3794,11 @@
         updateSlashEffect(
             delta
         );
-        // AT1斬撃エフェクト（右から中央前へ）
+        // AT1斬撃エフェクト（右親指1から中央前へ）
         updateAt1SlashEffect(
             delta
         );
-        // AT2斬撃エフェクト（左から中央前へ）
+        // AT2斬撃エフェクト（左親指1から中央前へ）
         updateAt2SlashEffect(
             delta
         );
