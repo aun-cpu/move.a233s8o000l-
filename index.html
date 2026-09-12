@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
     <title>3D GLB Viewer - Analog Stick & Camera Control</title>
 <style>
     * {
@@ -173,6 +173,88 @@
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('canvas-container').appendChild(renderer.domElement);
+    // ============================================================
+    // ズーム無効化（ダブルタップ／ピンチ）
+    // ============================================================
+    // viewportのuser-scalable=noだけでは端末やブラウザによって
+    // ダブルタップズームが働いてしまう場合があるため、JS側でも防止する。
+    let lastTouchEndTime = 0;
+    document.addEventListener(
+        'touchend',
+        function (e) {
+            const now = Date.now();
+            if (now - lastTouchEndTime <= 350) {
+                e.preventDefault();
+            }
+            lastTouchEndTime = now;
+        },
+        { passive: false }
+    );
+    document.addEventListener(
+        'dblclick',
+        function (e) {
+            e.preventDefault();
+        },
+        { passive: false }
+    );
+    // Safari系のピンチズーム（gestureイベント）を無効化
+    document.addEventListener(
+        'gesturestart',
+        function (e) {
+            e.preventDefault();
+        }
+    );
+    document.addEventListener(
+        'gesturechange',
+        function (e) {
+            e.preventDefault();
+        }
+    );
+    document.addEventListener(
+        'gestureend',
+        function (e) {
+            e.preventDefault();
+        }
+    );
+    // 複数指でのピンチズームも念のため防止
+    document.addEventListener(
+        'touchmove',
+        function (e) {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        },
+        { passive: false }
+    );
+    // ============================================================
+    // WebGLコンテキストロスト対策
+    // ============================================================
+    // モバイル端末ではメモリ不足やGPUドライバのリセットで
+    // WebGLコンテキストが失われることがあり、対処しないと
+    // 画面が固まったりクラッシュしたように見える。
+    // 描画ループを安全に止め、復帰時に再開できるようにする。
+    let isRendererContextLost = false;
+    renderer.domElement.addEventListener(
+        'webglcontextlost',
+        function (e) {
+            e.preventDefault();
+            isRendererContextLost = true;
+            console.warn(
+                'WebGLコンテキストが失われました。復帰を待機します。'
+            );
+        },
+        false
+    );
+    renderer.domElement.addEventListener(
+        'webglcontextrestored',
+        function () {
+            isRendererContextLost = false;
+            console.info(
+                'WebGLコンテキストが復帰しました。'
+            );
+        },
+        false
+    );
     // ============================================================
     // ライト
     // ============================================================
@@ -1690,6 +1772,21 @@
     // パーティクル
     // ============================================================
     const particles = [];
+    // 個別にジオメトリを作らず共有ジオメトリ＋スケールで表現することで、
+    // 頻繁なジオメトリの生成／破棄によるメモリ負荷（クラッシュの一因）を減らす。
+    const sharedFlashGeometry =
+        new THREE.SphereGeometry(1, 12, 12);
+    const sharedCubeGeometry =
+        new THREE.BoxGeometry(1, 1, 1);
+    // パーティクル総数の上限。超えた分は古いものから強制的に消す。
+    const MAX_PARTICLES = 180;
+    function capParticles() {
+        while (particles.length > MAX_PARTICLES) {
+            const oldest = particles.shift();
+            scene.remove(oldest.mesh);
+            oldest.mesh.material.dispose();
+        }
+    }
     function randomRange(min, max) {
         return min +
             Math.random() *
@@ -1699,12 +1796,6 @@
         position,
         options
     ) {
-        const geometry =
-            new THREE.SphereGeometry(
-                options.radius,
-                12,
-                12
-            );
         const material =
             new THREE.MeshBasicMaterial({
                 color: options.color,
@@ -1717,10 +1808,13 @@
             });
         const mesh =
             new THREE.Mesh(
-                geometry,
+                sharedFlashGeometry,
                 material
             );
         mesh.position.copy(position);
+        mesh.scale.setScalar(
+            options.radius
+        );
         scene.add(mesh);
         particles.push({
             kind: 'flash',
@@ -1728,11 +1822,14 @@
             elapsed: 0,
             duration:
                 options.duration,
+            baseScale:
+                options.radius,
             maxScale:
                 options.maxScale,
             startOpacity:
                 options.startOpacity
         });
+        capParticles();
     }
     function spawnCubeBurst(
         position,
@@ -1750,8 +1847,8 @@
                     params.minSize,
                     params.maxSize
                 );
-            const geometry =
-                new THREE.BoxGeometry(
+            const dimensions =
+                new THREE.Vector3(
                     size,
                     size,
                     size *
@@ -1778,9 +1875,12 @@
                 });
             const mesh =
                 new THREE.Mesh(
-                    geometry,
+                    sharedCubeGeometry,
                     material
                 );
+            mesh.scale.copy(
+                dimensions
+            );
             const spawnPosition =
                 position.clone();
             if (spawnSpread > 0) {
@@ -1861,9 +1961,12 @@
                 gravity:
                     params.gravity,
                 startOpacity: 1.0,
+                baseScale:
+                    dimensions,
                 startScale: 1.0
             });
         }
+        capParticles();
     }
     function updateParticles(delta) {
         for (
@@ -1884,11 +1987,14 @@
                 effect.kind === 'flash'
             ) {
                 const scale =
-                    1 +
-                    t *
+                    effect.baseScale *
                     (
-                        effect.maxScale -
-                        1
+                        1 +
+                        t *
+                        (
+                            effect.maxScale -
+                            1
+                        )
                     );
                 effect.mesh.scale.set(
                     scale,
@@ -1916,13 +2022,16 @@
                 effect.mesh.rotation.z +=
                     effect.angularVelocity.z *
                     delta;
-                const scale =
+                const factor =
                     effect.startScale *
                     (1 - t * 0.5);
                 effect.mesh.scale.set(
-                    scale,
-                    scale,
-                    scale
+                    effect.baseScale.x *
+                        factor,
+                    effect.baseScale.y *
+                        factor,
+                    effect.baseScale.z *
+                        factor
                 );
                 effect.mesh.material.opacity =
                     effect.startOpacity *
@@ -1932,7 +2041,6 @@
                 scene.remove(
                     effect.mesh
                 );
-                effect.mesh.geometry.dispose();
                 effect.mesh.material.dispose();
                 particles.splice(i, 1);
             }
@@ -2036,8 +2144,8 @@
                     edgeFactor *
                     0.8
                 );
-            const geometry =
-                new THREE.BoxGeometry(
+            const cubeDimensions =
+                new THREE.Vector3(
                     size,
                     size *
                         randomRange(
@@ -2069,9 +2177,12 @@
                 });
             const mesh =
                 new THREE.Mesh(
-                    geometry,
+                    sharedCubeGeometry,
                     material
                 );
+            mesh.scale.copy(
+                cubeDimensions
+            );
             mesh.position.copy(
                 position
             );
@@ -2131,9 +2242,12 @@
                 gravity:
                     mgCrescentGravity,
                 startOpacity: 1.0,
+                baseScale:
+                    cubeDimensions,
                 startScale: 1.0
             });
         }
+        capParticles();
     }
     // ============================================================
     // ジャンプ衝撃波
