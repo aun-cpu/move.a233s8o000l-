@@ -3731,10 +3731,13 @@
         }
         joystickStick.style.transform =
             `translate(${dx}px, ${dy}px)`;
-        joystickX =
-            dx / joystickRadius;
-        joystickY =
-            dy / joystickRadius;
+        // スマホ縦持ち時のスティック入力を、ゲーム内の横向き座標系へ
+        // 90°右回転してから移動処理へ渡す。
+        // 物理的に「上」へ入力 → ゲーム内では「左」へ進む。
+        const rawJoystickX = dx / joystickRadius;
+        const rawJoystickY = dy / joystickRadius;
+        joystickX = rawJoystickY;
+        joystickY = -rawJoystickX;
         const normalizedDistance =
             Math.hypot(
                 joystickX,
