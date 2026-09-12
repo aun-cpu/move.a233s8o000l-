@@ -1416,7 +1416,10 @@
             return;
         }
         jumpAttackHitApplied = true;
-        spawnCt1AttackHitParticles(attackPosition);
+        spawnCt1AttackHitParticles(
+            attackPosition,
+            forward
+        );
         triggerCameraShake();
     }
     // ============================================================
@@ -1511,10 +1514,21 @@
     // ct1攻撃ヒット時のパーティクル
     // （ジャンプ着地時の弾けるパーティクルをそのまま使用）
     // ============================================================
-    function spawnCt1AttackHitParticles(position) {
+    function spawnCt1AttackHitParticles(
+        position,
+        forward
+    ) {
         if (!position) return;
+        const particlePosition =
+            position.clone();
+        if (forward && forward.lengthSq() > 0) {
+            particlePosition.addScaledVector(
+                forward,
+                1.0
+            );
+        }
         spawnCubeBurst(
-            position,
+            particlePosition,
             {
                 count:
                     shockwaveSparkCount,
@@ -1542,7 +1556,7 @@
             }
         );
         spawnCubeBurst(
-            position,
+            particlePosition,
             {
                 count:
                     blackBurstCount,
@@ -1643,7 +1657,10 @@
             return;
         }
         at1HitApplied = true;
-        spawnCt1AttackHitParticles(attackPosition);
+        spawnCt1AttackHitParticles(
+            attackPosition,
+            forward
+        );
         triggerCameraShake();
     }
     // ============================================================
@@ -1719,7 +1736,10 @@
         }
 
         at2HitApplied = true;
-        spawnCt1AttackHitParticles(attackPosition);
+        spawnCt1AttackHitParticles(
+            attackPosition,
+            forward
+        );
         triggerCameraShake();
     }
     // ============================================================
@@ -2481,21 +2501,6 @@
         if (!targetModel) return;
         const origin =
             getShockwaveOriginPosition();
-        spawnFlashParticle(
-            origin,
-            {
-                radius:
-                    shockwaveFlashRadius,
-                duration:
-                    shockwaveFlashDuration,
-                maxScale:
-                    shockwaveFlashMaxScale,
-                startOpacity:
-                    shockwaveFlashMaxOpacity,
-                color:
-                    shockwaveFlashColor
-            }
-        );
         spawnCubeBurst(
             origin,
             {
@@ -3069,7 +3074,7 @@
             at2ArcRevealedSegment++;
             spawnAtArcSegment(
                 at2ArcRevealedSegment,
-                1
+                -1
             );
         }
     }
