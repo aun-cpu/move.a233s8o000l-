@@ -253,6 +253,19 @@
     // at1/at2の指定フレームで、ct1の現在の向きへ1だけ移動するためのフラグ
     let at1ForwardStepApplied = false;
     let at2ForwardStepApplied = false;
+    // at1/at2の前進ステップを瞬間移動ではなく滑らかに行うための状態
+    let at1StepActive = false;
+    let at1StepElapsed = 0;
+    let at1StepMovedDistance = 0;
+    let at1StepTotalDistance = 0;
+    const at1StepDuration = 0.12;
+    const at1StepDirection = new THREE.Vector3();
+    let at2StepActive = false;
+    let at2StepElapsed = 0;
+    let at2StepMovedDistance = 0;
+    let at2StepTotalDistance = 0;
+    const at2StepDuration = 0.12;
+    const at2StepDirection = new THREE.Vector3();
     const at1HitFrameStart = 11;
     const at1HitFrameEnd = 15;
     const at2HitFrame = 10;
@@ -1130,6 +1143,7 @@
         if (isAttacking2) {
             isAttacking2 = false;
         }
+        cancelAtForwardSteps();
         if (actions.hit) {
             setAction('hit');
         } else {
@@ -1249,22 +1263,94 @@
         );
         warpMgAwayFromCt1();
     }
-    function moveCt1ForwardAtAttackFrame(distance) {
+    // ============================================================
+    // at1/at2 前進ステップ（滑らかな移動）
+    // ============================================================
+    function startAtForwardStep(kind, distance) {
         if (!targetModel) return;
-
-        const forward = new THREE.Vector3(0, 0, 1);
-        forward.applyQuaternion(targetModel.quaternion);
-        forward.y = 0;
-
-        if (forward.lengthSq() > 0) {
-            forward.normalize();
-            targetModel.position.addScaledVector(
-                forward,
-                distance
-            );
+        const direction =
+            kind === 'at1'
+                ? at1StepDirection
+                : at2StepDirection;
+        direction.set(0, 0, 1);
+        direction.applyQuaternion(
+            targetModel.quaternion
+        );
+        direction.y = 0;
+        if (direction.lengthSq() > 0) {
+            direction.normalize();
+        }
+        if (kind === 'at1') {
+            at1StepTotalDistance = distance;
+            at1StepMovedDistance = 0;
+            at1StepElapsed = 0;
+            at1StepActive = true;
+        } else {
+            at2StepTotalDistance = distance;
+            at2StepMovedDistance = 0;
+            at2StepElapsed = 0;
+            at2StepActive = true;
         }
     }
-
+    // イーズアウトで加速の少ない自然な前進にする
+    function easeOutQuad(t) {
+        return 1 - (1 - t) * (1 - t);
+    }
+    function updateAtForwardSteps(delta) {
+        if (!targetModel) return;
+        if (at1StepActive) {
+            at1StepElapsed += delta;
+            const t =
+                Math.min(
+                    at1StepElapsed /
+                        at1StepDuration,
+                    1
+                );
+            const targetDistance =
+                at1StepTotalDistance *
+                easeOutQuad(t);
+            const deltaDistance =
+                targetDistance -
+                at1StepMovedDistance;
+            targetModel.position.addScaledVector(
+                at1StepDirection,
+                deltaDistance
+            );
+            at1StepMovedDistance =
+                targetDistance;
+            if (t >= 1) {
+                at1StepActive = false;
+            }
+        }
+        if (at2StepActive) {
+            at2StepElapsed += delta;
+            const t =
+                Math.min(
+                    at2StepElapsed /
+                        at2StepDuration,
+                    1
+                );
+            const targetDistance =
+                at2StepTotalDistance *
+                easeOutQuad(t);
+            const deltaDistance =
+                targetDistance -
+                at2StepMovedDistance;
+            targetModel.position.addScaledVector(
+                at2StepDirection,
+                deltaDistance
+            );
+            at2StepMovedDistance =
+                targetDistance;
+            if (t >= 1) {
+                at2StepActive = false;
+            }
+        }
+    }
+    function cancelAtForwardSteps() {
+        at1StepActive = false;
+        at2StepActive = false;
+    }
     // ============================================================
     // ct1 AT攻撃ヒット判定
     // ============================================================
@@ -2509,6 +2595,7 @@
         at2HitApplied = false;
         at1ForwardStepApplied = false;
         at2ForwardStepApplied = false;
+        cancelAtForwardSteps();
 
         const at1Action =
             actions.at1;
@@ -3139,6 +3226,10 @@
         updateDash(
             delta
         );
+        // AT攻撃の前進ステップ（瞬間移動ではなく滑らかに移動）
+        updateAtForwardSteps(
+            delta
+        );
         // ct1距離制限
         clampCt1DistanceFromMg();
         // mg距離ワープ
@@ -3198,12 +3289,13 @@
                         animationFPS
                     );
 
-                // at1の15フレーム目に、その時点でct1が向いている方向へ1進む。
+                // at1の15フレーム目に、その時点でct1が向いている方向へ滑らかに1進む。
                 if (
                     !at1ForwardStepApplied &&
                     at1FrameCount >= 15
                 ) {
-                    moveCt1ForwardAtAttackFrame(
+                    startAtForwardStep(
+                        'at1',
                         atAttackForwardStepDistance
                     );
                     at1ForwardStepApplied = true;
@@ -3222,12 +3314,13 @@
                         animationFPS
                     );
 
-                // at2の10フレーム目に、その時点でct1が向いている方向へ1進む。
+                // at2の10フレーム目に、その時点でct1が向いている方向へ滑らかに1進む。
                 if (
                     !at2ForwardStepApplied &&
                     at2FrameCount >= 10
                 ) {
-                    moveCt1ForwardAtAttackFrame(
+                    startAtForwardStep(
+                        'at2',
                         atAttackForwardStepDistance
                     );
                     at2ForwardStepApplied = true;
