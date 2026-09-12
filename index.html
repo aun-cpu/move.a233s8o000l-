@@ -2560,6 +2560,183 @@
     const atSlashHeight =
         targetHeightOffset * 0.6;
     const atSlashForwardTargetDistance = 1.4;
+    // ------------------------------------------------------------
+    // AT攻撃 半円エフェクト（at1:体の左／at2:体の右に、順番に出現）
+    // ------------------------------------------------------------
+    const atArcRadius = 1.3;
+    const atArcRadiusVariance = 0.15;
+    const atArcHeight = targetHeightOffset * 0.55;
+    const atArcSegmentSize = 0.16;
+    const atArcSegmentSizeVariance = 0.08;
+    const atArcParticlesPerSegment = 3;
+    const atArcParticleMinSpeed = 0.3;
+    const atArcParticleMaxSpeed = 1.1;
+    const atArcParticleMinDuration = 0.3;
+    const atArcParticleMaxDuration = 0.55;
+    const atArcParticleGravity = 0.9;
+    // 半円を描き切るまでにかかるフレーム数（この間に順番にセグメントが現れる）
+    const at1ArcRevealFrames = 12;
+    const at2ArcRevealFrames = 10;
+    // 半円1本あたりの分割数（多いほど滑らかにつながって見える）
+    const atArcSegmentCount = 18;
+    let at1ArcRevealedSegment = -1;
+    let at2ArcRevealedSegment = -1;
+    // sideSignが-1なら体の左（後方→前方）、+1なら体の右（前方→後方）を通る半円上の
+    // segmentIndex番目の位置にパーティクルを発生させる
+    function spawnAtArcSegment(segmentIndex, sideSign) {
+        if (!targetModel) return;
+        const forward = new THREE.Vector3(0, 0, 1);
+        forward.applyQuaternion(
+            targetModel.quaternion
+        );
+        forward.y = 0;
+        if (forward.lengthSq() > 0) {
+            forward.normalize();
+        }
+        const right = new THREE.Vector3(1, 0, 0);
+        right.applyQuaternion(
+            targetModel.quaternion
+        );
+        right.y = 0;
+        if (right.lengthSq() > 0) {
+            right.normalize();
+        }
+        const t =
+            atArcSegmentCount <= 1
+                ? 0
+                : segmentIndex /
+                  (atArcSegmentCount - 1);
+        const angle =
+            sideSign < 0
+                ? -Math.PI + t * Math.PI
+                : t * Math.PI;
+        const radius =
+            atArcRadius +
+            randomRange(
+                -atArcRadiusVariance,
+                atArcRadiusVariance
+            );
+        const center =
+            targetModel.position.clone();
+        center.y += atArcHeight;
+        const position = center
+            .clone()
+            .addScaledVector(
+                forward,
+                Math.cos(angle) * radius
+            )
+            .addScaledVector(
+                right,
+                Math.sin(angle) * radius
+            );
+        const outwardDirection =
+            new THREE.Vector3()
+                .addScaledVector(
+                    forward,
+                    Math.cos(angle)
+                )
+                .addScaledVector(
+                    right,
+                    Math.sin(angle)
+                );
+        if (
+            outwardDirection.lengthSq() > 0
+        ) {
+            outwardDirection.normalize();
+        }
+        for (
+            let i = 0;
+            i < atArcParticlesPerSegment;
+            i++
+        ) {
+            const size =
+                atArcSegmentSize +
+                randomRange(
+                    -atArcSegmentSizeVariance,
+                    atArcSegmentSizeVariance
+                );
+            const dimensions =
+                new THREE.Vector3(
+                    Math.max(size, 0.05),
+                    Math.max(
+                        size *
+                            randomRange(0.5, 0.9),
+                        0.05
+                    ),
+                    Math.max(
+                        size *
+                            randomRange(0.2, 0.4),
+                        0.03
+                    )
+                );
+            const color =
+                shockwaveSparkColorRed
+                    .clone()
+                    .lerp(
+                        shockwaveSparkColorBlack,
+                        Math.random()
+                    );
+            const material =
+                new THREE.MeshBasicMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: 1.0,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                    blending:
+                        THREE.AdditiveBlending
+                });
+            const mesh =
+                new THREE.Mesh(
+                    sharedCubeGeometry,
+                    material
+                );
+            mesh.scale.copy(dimensions);
+            mesh.position.copy(position);
+            mesh.position.y +=
+                randomRange(-0.1, 0.15);
+            mesh.rotation.y = angle;
+            mesh.rotation.x =
+                randomRange(-0.2, 0.2);
+            mesh.rotation.z =
+                randomRange(-0.2, 0.2);
+            scene.add(mesh);
+            const velocity =
+                outwardDirection
+                    .clone()
+                    .multiplyScalar(
+                        randomRange(
+                            atArcParticleMinSpeed,
+                            atArcParticleMaxSpeed
+                        )
+                    );
+            velocity.y +=
+                randomRange(0, 0.6);
+            particles.push({
+                kind: 'cube',
+                mesh: mesh,
+                elapsed: 0,
+                duration:
+                    randomRange(
+                        atArcParticleMinDuration,
+                        atArcParticleMaxDuration
+                    ),
+                velocity: velocity,
+                angularVelocity:
+                    new THREE.Vector3(
+                        randomRange(-3, 3),
+                        randomRange(-3, 3),
+                        randomRange(-3, 3)
+                    ),
+                gravity:
+                    atArcParticleGravity,
+                startOpacity: 1.0,
+                baseScale: dimensions,
+                startScale: 1.0
+            });
+        }
+        capParticles();
+    }
     // sideSignが+1なら右、-1なら左を起点にする（ボーンが見つからない場合のフォールバック用）
     function getAtSlashOrigin(sideSign) {
         const right =
@@ -2762,7 +2939,7 @@
         }
         capParticles();
     }
-    // at1: 右親指1ボーンから中央前へ流れる
+    // at1: 体の左側に半円状のエフェクトを順番に出現させる
     function updateAt1SlashEffect(
         delta
     ) {
@@ -2772,48 +2949,29 @@
         ) {
             return;
         }
-        let origin;
-        if (at1SourceBone) {
-            at1SourceBone.getWorldPosition(
-                at1SourceWorldPosition
+        const t =
+            Math.min(
+                at1FrameCount /
+                    at1ArcRevealFrames,
+                1
             );
-            origin = at1SourceWorldPosition;
-        } else {
-            origin =
-                getAtSlashOrigin(1);
+        const targetSegment =
+            Math.floor(
+                t *
+                (atArcSegmentCount - 1)
+            );
+        while (
+            at1ArcRevealedSegment <
+            targetSegment
+        ) {
+            at1ArcRevealedSegment++;
+            spawnAtArcSegment(
+                at1ArcRevealedSegment,
+                -1
+            );
         }
-        const target =
-            getAtSlashTarget();
-        spawnConvergingCubeBurst(
-            origin,
-            target,
-            {
-                count:
-                    atSlashSpawnCountPerFrame,
-                minSize:
-                    atSlashMinSize,
-                maxSize:
-                    atSlashMaxSize,
-                minSpeed:
-                    atSlashMinSpeed,
-                maxSpeed:
-                    atSlashMaxSpeed,
-                minDuration:
-                    atSlashMinDuration,
-                maxDuration:
-                    atSlashMaxDuration,
-                gravity:
-                    atSlashGravity,
-                colorA:
-                    shockwaveSparkColorRed,
-                colorB:
-                    shockwaveSparkColorBlack,
-                spreadAngle:
-                    atSlashSpreadAngle
-            }
-        );
     }
-    // at2: 左親指1ボーンから中央前へ流れる
+    // at2: 体の右側に半円状のエフェクトを順番に出現させる
     function updateAt2SlashEffect(
         delta
     ) {
@@ -2823,46 +2981,27 @@
         ) {
             return;
         }
-        let origin;
-        if (at2SourceBone) {
-            at2SourceBone.getWorldPosition(
-                at2SourceWorldPosition
+        const t =
+            Math.min(
+                at2FrameCount /
+                    at2ArcRevealFrames,
+                1
             );
-            origin = at2SourceWorldPosition;
-        } else {
-            origin =
-                getAtSlashOrigin(-1);
+        const targetSegment =
+            Math.floor(
+                t *
+                (atArcSegmentCount - 1)
+            );
+        while (
+            at2ArcRevealedSegment <
+            targetSegment
+        ) {
+            at2ArcRevealedSegment++;
+            spawnAtArcSegment(
+                at2ArcRevealedSegment,
+                1
+            );
         }
-        const target =
-            getAtSlashTarget();
-        spawnConvergingCubeBurst(
-            origin,
-            target,
-            {
-                count:
-                    atSlashSpawnCountPerFrame,
-                minSize:
-                    atSlashMinSize,
-                maxSize:
-                    atSlashMaxSize,
-                minSpeed:
-                    atSlashMinSpeed,
-                maxSpeed:
-                    atSlashMaxSpeed,
-                minDuration:
-                    atSlashMinDuration,
-                maxDuration:
-                    atSlashMaxDuration,
-                gravity:
-                    atSlashGravity,
-                colorA:
-                    shockwaveSparkColorRed,
-                colorB:
-                    shockwaveSparkColorBlack,
-                spreadAngle:
-                    atSlashSpreadAngle
-            }
-        );
     }
     // ============================================================
     // ダッシュ
@@ -3148,6 +3287,7 @@
         at1ForwardStepApplied = false;
         at2ForwardStepApplied = false;
         cancelAtForwardSteps();
+        at1ArcRevealedSegment = -1;
 
         const at1Action =
             actions.at1;
@@ -3183,6 +3323,7 @@
         at2FrameCount = 0;
         at2HitApplied = false;
         at2ForwardStepApplied = false;
+        at2ArcRevealedSegment = -1;
 
         const at2Action =
             actions.at2;
