@@ -1665,6 +1665,16 @@
         // 同じ位置へパーティクルを重ねて表示できるようにする
         at1HitWorldPosition.copy(attackPosition);
         at1HasHitPositionThisCombo = true;
+        spawnFlashParticle(
+            attackPosition,
+            {
+                radius: atHitFlashRadius,
+                duration: atHitFlashDuration,
+                maxScale: atHitFlashMaxScale,
+                startOpacity: 1.0,
+                color: atHitFlashColor
+            }
+        );
         spawnCt1AttackHitParticles(
             attackPosition,
             forward
@@ -1751,6 +1761,16 @@
             at1HasHitPositionThisCombo
                 ? at1HitWorldPosition
                 : attackPosition;
+        spawnFlashParticle(
+            particleSpawnPosition,
+            {
+                radius: atHitFlashRadius * 1.3,
+                duration: atHitFlashDuration,
+                maxScale: atHitFlashMaxScale * 1.2,
+                startOpacity: 1.0,
+                color: atHitFlashColor
+            }
+        );
         spawnCt1AttackHitParticles(
             particleSpawnPosition,
             forward
@@ -1987,7 +2007,7 @@
     const sharedCubeGeometry =
         new THREE.BoxGeometry(1, 1, 1);
     // パーティクル総数の上限。超えた分は古いものから強制的に消す。
-    const MAX_PARTICLES = 180;
+    const MAX_PARTICLES = 320;
     function capParticles() {
         while (particles.length > MAX_PARTICLES) {
             const oldest = particles.shift();
@@ -2465,11 +2485,11 @@
     const shockwaveFlashMaxScale = 3.2;
     const shockwaveFlashMaxOpacity = 1.0;
     const shockwaveFlashColor = 0xffffff;
-    const shockwaveSparkCount = 55;
-    const shockwaveSparkMinSpeed = 2.0;
-    const shockwaveSparkMaxSpeed = 6.0;
-    const shockwaveSparkMinSize = 0.08;
-    const shockwaveSparkMaxSize = 0.24;
+    const shockwaveSparkCount = 80;
+    const shockwaveSparkMinSpeed = 2.5;
+    const shockwaveSparkMaxSpeed = 7.5;
+    const shockwaveSparkMinSize = 0.09;
+    const shockwaveSparkMaxSize = 0.3;
     const shockwaveSparkMinDuration = 0.4;
     const shockwaveSparkMaxDuration = 0.9;
     const shockwaveSparkGravity = 3.5;
@@ -2477,11 +2497,11 @@
         new THREE.Color(0xff2200);
     const shockwaveSparkColorBlack =
         new THREE.Color(0x120000);
-    const blackBurstCount = 45;
+    const blackBurstCount = 65;
     const blackBurstMinSpeed = 3.0;
-    const blackBurstMaxSpeed = 7.0;
+    const blackBurstMaxSpeed = 8.0;
     const blackBurstMinSize = 0.1;
-    const blackBurstMaxSize = 0.26;
+    const blackBurstMaxSize = 0.3;
     const blackBurstMinDuration = 0.5;
     const blackBurstMaxDuration = 1.0;
     const blackBurstGravity = 2.5;
@@ -2612,14 +2632,14 @@
     const atArcRadius = 1.3;
     const atArcRadiusVariance = 0.15;
     const atArcHeight = targetHeightOffset * 0.55;
-    const atArcSegmentSize = 0.16;
-    const atArcSegmentSizeVariance = 0.08;
-    const atArcParticlesPerSegment = 3;
-    const atArcParticleMinSpeed = 0.3;
-    const atArcParticleMaxSpeed = 1.1;
-    const atArcParticleMinDuration = 0.3;
-    const atArcParticleMaxDuration = 0.55;
-    const atArcParticleGravity = 0.9;
+    const atArcSegmentSize = 0.22;
+    const atArcSegmentSizeVariance = 0.1;
+    const atArcParticlesPerSegment = 5;
+    const atArcParticleMinSpeed = 0.6;
+    const atArcParticleMaxSpeed = 2.0;
+    const atArcParticleMinDuration = 0.35;
+    const atArcParticleMaxDuration = 0.7;
+    const atArcParticleGravity = 0.7;
     // 半円を描き切るまでにかかるフレーム数（この間に順番にセグメントが現れる）
     const at1ArcRevealFrames = 12;
     const at2ArcRevealFrames = 10;
@@ -2627,6 +2647,20 @@
     const atArcSegmentCount = 18;
     let at1ArcRevealedSegment = -1;
     let at2ArcRevealedSegment = -1;
+    // AT用の発光色（赤〜金のグラデーションで派手さを強調）
+    const atArcColorRed =
+        new THREE.Color(0xff3a1a);
+    const atArcColorGold =
+        new THREE.Color(0xffcc33);
+    const atArcFlashColor = 0xfff3b0;
+    const atArcFlashDuration = 0.18;
+    const atArcFlashRadius = 0.35;
+    const atArcFlashMaxScale = 3.2;
+    // AT攻撃ヒット時の大きな閃光
+    const atHitFlashColor = 0xffffff;
+    const atHitFlashDuration = 0.16;
+    const atHitFlashRadius = 0.55;
+    const atHitFlashMaxScale = 4.5;
     // sideSignが-1なら体の左（後方→前方）、+1なら体の右（後方→前方）を通る半円上の
     // segmentIndex番目の位置にパーティクルを発生させる
     function spawnAtArcSegment(segmentIndex, sideSign) {
@@ -2693,6 +2727,17 @@
         ) {
             outwardDirection.normalize();
         }
+        // 各セグメントに小さな閃光を添えて、線が明るく発光して見えるようにする
+        spawnFlashParticle(
+            position,
+            {
+                radius: atArcFlashRadius,
+                duration: atArcFlashDuration,
+                maxScale: atArcFlashMaxScale,
+                startOpacity: 0.9,
+                color: atArcFlashColor
+            }
+        );
         for (
             let i = 0;
             i < atArcParticlesPerSegment;
@@ -2719,10 +2764,10 @@
                     )
                 );
             const color =
-                shockwaveSparkColorRed
+                atArcColorRed
                     .clone()
                     .lerp(
-                        shockwaveSparkColorBlack,
+                        atArcColorGold,
                         Math.random()
                     );
             const material =
@@ -2760,7 +2805,7 @@
                         )
                     );
             velocity.y +=
-                randomRange(0, 0.6);
+                randomRange(0, 0.9);
             particles.push({
                 kind: 'cube',
                 mesh: mesh,
@@ -2773,9 +2818,9 @@
                 velocity: velocity,
                 angularVelocity:
                     new THREE.Vector3(
-                        randomRange(-3, 3),
-                        randomRange(-3, 3),
-                        randomRange(-3, 3)
+                        randomRange(-5, 5),
+                        randomRange(-5, 5),
+                        randomRange(-5, 5)
                     ),
                 gravity:
                     atArcParticleGravity,
