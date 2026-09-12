@@ -2576,8 +2576,21 @@
             return;
         }
 
+        // at2の10フレーム目以降にATを押した場合はat1へつなぐ。
+        if (
+            isAttacking2 &&
+            at2FrameCount >= at2HitFrame
+        ) {
+            startAt1Attack();
+            return;
+        }
+
         if (isAttacking1 || isAttacking2) return;
 
+        startAt1Attack();
+    }
+
+    function startAt1Attack() {
         isAttacking1 = true;
         isAttacking2 = false;
         at1FrameCount = 0;
