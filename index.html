@@ -2509,6 +2509,310 @@
         );
     }
     // ============================================================
+    // AT攻撃エフェクト（at1:右から中央前へ／at2:左から中央前へ）
+    // ============================================================
+    const atSlashSpawnCountPerFrame = 4;
+    const atSlashMinSize = 0.12;
+    const atSlashMaxSize = 0.34;
+    const atSlashMinSpeed = 3.0;
+    const atSlashMaxSpeed = 6.5;
+    const atSlashMinDuration = 0.2;
+    const atSlashMaxDuration = 0.45;
+    const atSlashGravity = 0.6;
+    const atSlashSpreadAngle = 0.35;
+    const atSlashSideOffset = 0.9;
+    const atSlashHeight =
+        targetHeightOffset * 0.6;
+    const atSlashForwardTargetDistance = 1.4;
+    // sideSignが+1なら右、-1なら左を起点にする
+    function getAtSlashOrigin(sideSign) {
+        const right =
+            new THREE.Vector3(1, 0, 0);
+        right.applyQuaternion(
+            targetModel.quaternion
+        );
+        right.y = 0;
+        if (right.lengthSq() > 0) {
+            right.normalize();
+        }
+        const origin =
+            targetModel.position.clone();
+        origin.y += atSlashHeight;
+        origin.addScaledVector(
+            right,
+            sideSign * atSlashSideOffset
+        );
+        return origin;
+    }
+    // ct1の中央前方（収束先）の位置を取得
+    function getAtSlashTarget() {
+        const forward =
+            new THREE.Vector3(0, 0, 1);
+        forward.applyQuaternion(
+            targetModel.quaternion
+        );
+        forward.y = 0;
+        if (forward.lengthSq() > 0) {
+            forward.normalize();
+        }
+        const target =
+            targetModel.position.clone();
+        target.y += atSlashHeight;
+        target.addScaledVector(
+            forward,
+            atSlashForwardTargetDistance
+        );
+        return target;
+    }
+    // 起点から目標地点へ収束するように飛ぶパーティクル
+    // （横から中央前へ流れる演出に使用。spawnCubeBurstの全方位ランダムとは異なり、
+    //   起点→目標の方向を基準に小さくジッターさせるだけにする）
+    function spawnConvergingCubeBurst(
+        originPosition,
+        targetPosition,
+        params
+    ) {
+        const baseDirection =
+            targetPosition.clone()
+                .sub(originPosition);
+        if (
+            baseDirection.lengthSq() >
+            0.0001
+        ) {
+            baseDirection.normalize();
+        } else {
+            baseDirection.set(0, 0, 1);
+        }
+        const upHelper =
+            Math.abs(baseDirection.y) >
+            0.99
+                ? new THREE.Vector3(1, 0, 0)
+                : new THREE.Vector3(0, 1, 0);
+        const rightAxis =
+            new THREE.Vector3()
+                .crossVectors(
+                    baseDirection,
+                    upHelper
+                )
+                .normalize();
+        const upAxis =
+            new THREE.Vector3()
+                .crossVectors(
+                    rightAxis,
+                    baseDirection
+                )
+                .normalize();
+        for (
+            let i = 0;
+            i < params.count;
+            i++
+        ) {
+            const size =
+                randomRange(
+                    params.minSize,
+                    params.maxSize
+                );
+            const dimensions =
+                new THREE.Vector3(
+                    size,
+                    size,
+                    size *
+                    randomRange(
+                        0.15,
+                        0.35
+                    )
+                );
+            const color =
+                params.colorA.clone()
+                    .lerp(
+                        params.colorB,
+                        Math.random()
+                    );
+            const material =
+                new THREE.MeshBasicMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: 1.0,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                    blending:
+                        THREE.AdditiveBlending
+                });
+            const mesh =
+                new THREE.Mesh(
+                    sharedCubeGeometry,
+                    material
+                );
+            mesh.scale.copy(
+                dimensions
+            );
+            mesh.position.copy(
+                originPosition
+            );
+            mesh.rotation.set(
+                Math.random() *
+                    Math.PI * 2,
+                Math.random() *
+                    Math.PI * 2,
+                Math.random() *
+                    Math.PI * 2
+            );
+            const jitterAngleA =
+                randomRange(
+                    -params.spreadAngle,
+                    params.spreadAngle
+                );
+            const jitterAngleB =
+                randomRange(
+                    -params.spreadAngle,
+                    params.spreadAngle
+                );
+            const direction =
+                baseDirection.clone()
+                    .addScaledVector(
+                        rightAxis,
+                        Math.sin(
+                            jitterAngleA
+                        )
+                    )
+                    .addScaledVector(
+                        upAxis,
+                        Math.sin(
+                            jitterAngleB
+                        )
+                    );
+            if (
+                direction.lengthSq() >
+                0
+            ) {
+                direction.normalize();
+            }
+            const speed =
+                randomRange(
+                    params.minSpeed,
+                    params.maxSpeed
+                );
+            const velocity =
+                direction.multiplyScalar(
+                    speed
+                );
+            const angularVelocity =
+                new THREE.Vector3(
+                    randomRange(-10, 10),
+                    randomRange(-10, 10),
+                    randomRange(-10, 10)
+                );
+            scene.add(mesh);
+            particles.push({
+                kind: 'cube',
+                mesh: mesh,
+                elapsed: 0,
+                duration:
+                    randomRange(
+                        params.minDuration,
+                        params.maxDuration
+                    ),
+                velocity:
+                    velocity,
+                angularVelocity:
+                    angularVelocity,
+                gravity:
+                    params.gravity,
+                startOpacity: 1.0,
+                baseScale:
+                    dimensions,
+                startScale: 1.0
+            });
+        }
+        capParticles();
+    }
+    // at1: 右から中央前へ流れる
+    function updateAt1SlashEffect(
+        delta
+    ) {
+        if (
+            !isAttacking1 ||
+            !targetModel
+        ) {
+            return;
+        }
+        const origin =
+            getAtSlashOrigin(1);
+        const target =
+            getAtSlashTarget();
+        spawnConvergingCubeBurst(
+            origin,
+            target,
+            {
+                count:
+                    atSlashSpawnCountPerFrame,
+                minSize:
+                    atSlashMinSize,
+                maxSize:
+                    atSlashMaxSize,
+                minSpeed:
+                    atSlashMinSpeed,
+                maxSpeed:
+                    atSlashMaxSpeed,
+                minDuration:
+                    atSlashMinDuration,
+                maxDuration:
+                    atSlashMaxDuration,
+                gravity:
+                    atSlashGravity,
+                colorA:
+                    shockwaveSparkColorRed,
+                colorB:
+                    shockwaveSparkColorBlack,
+                spreadAngle:
+                    atSlashSpreadAngle
+            }
+        );
+    }
+    // at2: 左から中央前へ流れる
+    function updateAt2SlashEffect(
+        delta
+    ) {
+        if (
+            !isAttacking2 ||
+            !targetModel
+        ) {
+            return;
+        }
+        const origin =
+            getAtSlashOrigin(-1);
+        const target =
+            getAtSlashTarget();
+        spawnConvergingCubeBurst(
+            origin,
+            target,
+            {
+                count:
+                    atSlashSpawnCountPerFrame,
+                minSize:
+                    atSlashMinSize,
+                maxSize:
+                    atSlashMaxSize,
+                minSpeed:
+                    atSlashMinSpeed,
+                maxSpeed:
+                    atSlashMaxSpeed,
+                minDuration:
+                    atSlashMinDuration,
+                maxDuration:
+                    atSlashMaxDuration,
+                gravity:
+                    atSlashGravity,
+                colorA:
+                    shockwaveSparkColorRed,
+                colorB:
+                    shockwaveSparkColorBlack,
+                spreadAngle:
+                    atSlashSpreadAngle
+            }
+        );
+    }
+    // ============================================================
     // ダッシュ
     // ============================================================
     let isDashing = false;
@@ -3436,6 +3740,14 @@
         );
         // 斬撃エフェクト
         updateSlashEffect(
+            delta
+        );
+        // AT1斬撃エフェクト（右から中央前へ）
+        updateAt1SlashEffect(
+            delta
+        );
+        // AT2斬撃エフェクト（左から中央前へ）
+        updateAt2SlashEffect(
             delta
         );
         // ========================================================
