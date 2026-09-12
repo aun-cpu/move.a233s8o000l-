@@ -1420,7 +1420,7 @@
             return;
         }
         jumpAttackHitApplied = true;
-        spawnCt1AttackHitParticles(
+        spawnCt1HitEffect(
             attackPosition,
             forward
         );
@@ -1591,6 +1591,29 @@
             }
         );
     }
+    // ------------------------------------------------------------
+    // ct1のヒット演出（ジャンプ攻撃・AT攻撃で共通の閃光＋ブロックパーティクル）
+    // ------------------------------------------------------------
+    const ct1HitFlashColor = 0xffffff;
+    const ct1HitFlashDuration = 0.16;
+    const ct1HitFlashRadius = 0.55;
+    const ct1HitFlashMaxScale = 4.0;
+    function spawnCt1HitEffect(position, forward) {
+        spawnFlashParticle(
+            position,
+            {
+                radius: ct1HitFlashRadius,
+                duration: ct1HitFlashDuration,
+                maxScale: ct1HitFlashMaxScale,
+                startOpacity: 1.0,
+                color: ct1HitFlashColor
+            }
+        );
+        spawnCt1AttackHitParticles(
+            position,
+            forward
+        );
+    }
 
     // ============================================================
     // ct1 AT攻撃ヒット判定
@@ -1665,17 +1688,7 @@
         // 同じ位置へパーティクルを重ねて表示できるようにする
         at1HitWorldPosition.copy(attackPosition);
         at1HasHitPositionThisCombo = true;
-        spawnFlashParticle(
-            attackPosition,
-            {
-                radius: atHitFlashRadius,
-                duration: atHitFlashDuration,
-                maxScale: atHitFlashMaxScale,
-                startOpacity: 1.0,
-                color: atHitFlashColor
-            }
-        );
-        spawnCt1AttackHitParticles(
+        spawnCt1HitEffect(
             attackPosition,
             forward
         );
@@ -1761,17 +1774,7 @@
             at1HasHitPositionThisCombo
                 ? at1HitWorldPosition
                 : attackPosition;
-        spawnFlashParticle(
-            particleSpawnPosition,
-            {
-                radius: atHitFlashRadius * 1.3,
-                duration: atHitFlashDuration,
-                maxScale: atHitFlashMaxScale * 1.2,
-                startOpacity: 1.0,
-                color: atHitFlashColor
-            }
-        );
-        spawnCt1AttackHitParticles(
+        spawnCt1HitEffect(
             particleSpawnPosition,
             forward
         );
@@ -2647,20 +2650,11 @@
     const atArcSegmentCount = 18;
     let at1ArcRevealedSegment = -1;
     let at2ArcRevealedSegment = -1;
-    // AT用の発光色（赤〜金のグラデーションで派手さを強調）
-    const atArcColorRed =
-        new THREE.Color(0xff3a1a);
-    const atArcColorGold =
-        new THREE.Color(0xffcc33);
-    const atArcFlashColor = 0xfff3b0;
+    // AT半円エフェクトの色は、他のct1ヒット演出と同じ赤×黒のブロックカラーで統一する
+    const atArcFlashColor = 0xffffff;
     const atArcFlashDuration = 0.18;
     const atArcFlashRadius = 0.35;
     const atArcFlashMaxScale = 3.2;
-    // AT攻撃ヒット時の大きな閃光
-    const atHitFlashColor = 0xffffff;
-    const atHitFlashDuration = 0.16;
-    const atHitFlashRadius = 0.55;
-    const atHitFlashMaxScale = 4.5;
     // sideSignが-1なら体の左（後方→前方）、+1なら体の右（後方→前方）を通る半円上の
     // segmentIndex番目の位置にパーティクルを発生させる
     function spawnAtArcSegment(segmentIndex, sideSign) {
@@ -2764,10 +2758,10 @@
                     )
                 );
             const color =
-                atArcColorRed
+                shockwaveSparkColorRed
                     .clone()
                     .lerp(
-                        atArcColorGold,
+                        shockwaveSparkColorBlack,
                         Math.random()
                     );
             const material =
