@@ -17,6 +17,33 @@
         background-color: #1a1a1a;
         touch-action: none;
     }
+    /* ============================================================
+       スマホを縦のまま持った状態で、画面表示だけを横向きにする
+       ============================================================
+       物理的な向きは変えず（回転操作を要求せず）、#app-stage全体を
+       CSSでその場で90度回転させて表示する。縦持ちの実解像度
+       (幅Wp×高さHp)に対して、#app-stageは横向きコンテンツとして
+       幅Hp×高さWpで組み立てておき、それを回転させて画面いっぱいに
+       収める。JS側では isPortraitDevice()/getLogicalWidth() 等を使い、
+       「見た目上の横向き座標系」に合わせてタッチ座標やレンダラー
+       サイズを換算する。
+       ============================================================ */
+    #app-stage {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        transform-origin: left top;
+        z-index: 1;
+    }
+    body.force-rotate #app-stage {
+        top: 0;
+        left: 100%;
+        width: 100vh;
+        height: 100vw;
+        transform: rotate(90deg);
+    }
     #canvas-container {
         width: 100%;
         height: 100%;
@@ -25,52 +52,12 @@
         left: 0;
         z-index: 1;
     }
-    /* ============================================================
-       回転案内オーバーレイ（縦画面で表示し、横画面になったら自動的に隠す）
-       ============================================================ */
-    #rotate-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        z-index: 5000;
-        background-color: #0d0d0d;
-        color: #ffffff;
-        display: none;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        font-family: sans-serif;
-        padding: 24px;
-    }
-    #rotate-overlay .rotate-icon {
-        font-size: 56px;
-        margin-bottom: 16px;
-        animation: rotateHint 1.6s ease-in-out infinite;
-        display: inline-block;
-    }
-    #rotate-overlay .rotate-text {
-        font-size: 18px;
-        line-height: 1.6;
-        opacity: 0.9;
-    }
-    @keyframes rotateHint {
-        0%, 100% { transform: rotate(0deg); }
-        50% { transform: rotate(90deg); }
-    }
-    @media (orientation: portrait) {
-        #rotate-overlay {
-            display: flex;
-        }
-    }
     #loading-screen {
-        position: fixed;
+        position: absolute;
         top: 0;
         left: 0;
-        width: 100vw;
-        height: 100vh;
+        width: 100%;
+        height: 100%;
         z-index: 1000;
         background-color: #1a1208;
         display: flex;
@@ -226,94 +213,68 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
-<div id="rotate-overlay">
-    <div class="rotate-icon">&#128241;</div>
-    <div class="rotate-text">画面を横向きにしてください<br>Please rotate your device to landscape</div>
+<div id="app-stage">
+    <div id="loading-screen">
+        <img src="./loading.jpg" alt="Loading...">
+    </div>
+    <div id="canvas-container"></div>
+    <div id="joystick-container">
+        <div id="joystick-base"></div>
+        <div id="joystick-stick"></div>
+    </div>
+    <div id="jump-button">↑</div>
+    <div id="dash-button">⏫</div>
+    <div id="at-button">AT</div>
 </div>
-<div id="loading-screen">
-    <img src="./loading.jpg" alt="Loading...">
-</div>
-<div id="canvas-container"></div>
-<div id="joystick-container">
-    <div id="joystick-base"></div>
-    <div id="joystick-stick"></div>
-</div>
-<div id="jump-button">↑</div>
-<div id="dash-button">⏫</div>
-<div id="at-button">AT</div>
 <script>
     // ============================================================
-    // 画面の向き制御
+    // 画面の向き制御（スマホは縦持ちのまま、表示だけを横向きにする）
     // ============================================================
-    // Screen Orientation APIによる横向き固定を試みる。
-    // 多くのモバイルブラウザではフルスクリーン状態でないとlock()が
-    // 拒否されるため、ユーザーの最初のタップ操作をトリガーに
-    // フルスクリーン化とロックを同時に試行する。
-    // 対応していない環境（iOS Safari等）ではAPIが使えないため、
-    // その場合はCSSのrotate-overlay（縦画面時の案内表示）のみで対応する。
-    let orientationLockAttempted = false;
-    function attemptLandscapeLock() {
-        if (orientationLockAttempted) return;
-        orientationLockAttempted = true;
-        try {
-            const docEl = document.documentElement;
-            const requestFullscreen =
-                docEl.requestFullscreen ||
-                docEl.webkitRequestFullscreen ||
-                docEl.mozRequestFullScreen ||
-                docEl.msRequestFullscreen;
-            const doLock = () => {
-                if (
-                    screen.orientation &&
-                    screen.orientation.lock
-                ) {
-                    screen.orientation
-                        .lock('landscape')
-                        .catch((err) => {
-                            console.info(
-                                '画面回転ロックは利用できません:',
-                                err
-                            );
-                        });
-                }
-            };
-            if (requestFullscreen) {
-                Promise.resolve(
-                    requestFullscreen.call(docEl)
-                )
-                    .then(doLock)
-                    .catch(() => {
-                        // フルスクリーンが拒否された場合でも
-                        // ロック自体は試みる（対応端末もあるため）
-                        doLock();
-                    });
-            } else {
-                doLock();
-            }
-        } catch (err) {
-            console.info(
-                '画面回転ロックの試行中にエラーが発生しました:',
-                err
-            );
+    // 実機を回転させる代わりに、#app-stage全体をCSSで90度回転させて
+    // 表示する。ここではその判定と、実際の指のタッチ座標
+    // （縦持ちの画面座標）を「見た目上の横向き座標系」に変換する
+    // ヘルパーを用意する。以降のジョイスティック／カメラドラッグ等の
+    // 数値計算は、この「論理（横向き）座標」を使うことで、
+    // 回転の有無にかかわらず同じロジックで動作する。
+    function isPortraitDevice() {
+        return window.innerWidth < window.innerHeight;
+    }
+    function getLogicalWidth() {
+        return isPortraitDevice()
+            ? window.innerHeight
+            : window.innerWidth;
+    }
+    function getLogicalHeight() {
+        return isPortraitDevice()
+            ? window.innerWidth
+            : window.innerHeight;
+    }
+    // 実画面座標(clientX, clientY)を、回転後の見た目座標に変換する。
+    // #app-stageは transform-origin:left top; left:100%; rotate(90deg)
+    // で配置しているため、その幾何から導いた変換式を使う。
+    function getLogicalX(clientX, clientY) {
+        return isPortraitDevice() ? clientY : clientX;
+    }
+    function getLogicalY(clientX, clientY) {
+        return isPortraitDevice()
+            ? window.innerWidth - clientX
+            : clientY;
+    }
+    function updateForceRotateClass() {
+        if (isPortraitDevice()) {
+            document.body.classList.add('force-rotate');
+        } else {
+            document.body.classList.remove('force-rotate');
         }
     }
-    window.addEventListener(
-        'touchend',
-        attemptLandscapeLock,
-        { once: true, passive: true }
-    );
-    window.addEventListener(
-        'pointerdown',
-        attemptLandscapeLock,
-        { once: true, passive: true }
-    );
+    updateForceRotateClass();
     // ============================================================
     // Three.js 基本設定
     // ============================================================
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(
         75,
-        window.innerWidth / window.innerHeight,
+        getLogicalWidth() / getLogicalHeight(),
         0.1,
         1000
     );
@@ -330,8 +291,12 @@
     // ドット絵のような粗いピクセル表現にする。数値が大きいほど粗くなる。
     const pixelationScale = 1.2;
     function applyPixelatedRendererSize() {
-        const displayWidth = window.innerWidth;
-        const displayHeight = window.innerHeight;
+        // canvas-containerは#app-stageの内側（回転前のローカル座標系）で
+        // 100%サイズになっているため、実際に埋めるべきピクセルサイズは
+        // 「論理（横向き）幅・高さ」を使う。縦持ちのまま横向き表示にする
+        // 際、これが実際の描画バッファ／canvasのCSSサイズになる。
+        const displayWidth = getLogicalWidth();
+        const displayHeight = getLogicalHeight();
         const lowResWidth = Math.max(
             1,
             Math.floor(displayWidth / pixelationScale)
@@ -3973,18 +3938,22 @@
             return;
         }
         if (isCameraDragging) return;
+        // 「画面の右半分」の判定は、実際の画面座標ではなく
+        // 見た目上（横向き表示）の座標系で行う。縦持ちのまま
+        // 回転表示している場合はgetLogicalX/Widthを使うことで、
+        // 回転の有無にかかわらず同じ判定になる。
         if (
-            e.clientX >=
-            window.innerWidth / 2
+            getLogicalX(e.clientX, e.clientY) >=
+            getLogicalWidth() / 2
         ) {
             e.preventDefault();
             isCameraDragging = true;
             cameraPointerId =
                 e.pointerId;
             previousTouchX =
-                e.clientX;
+                getLogicalX(e.clientX, e.clientY);
             previousTouchY =
-                e.clientY;
+                getLogicalY(e.clientX, e.clientY);
             try {
                 renderer.domElement
                     .setPointerCapture(
@@ -4002,11 +3971,16 @@
             return;
         }
         e.preventDefault();
+        // 見た目上（横向き表示）の座標系でドラッグ量を計算する。
+        const currentLogicalX =
+            getLogicalX(e.clientX, e.clientY);
+        const currentLogicalY =
+            getLogicalY(e.clientX, e.clientY);
         const deltaX =
-            e.clientX -
+            currentLogicalX -
             previousTouchX;
         const deltaY =
-            e.clientY -
+            currentLogicalY -
             previousTouchY;
         cameraSpherical.theta -=
             deltaX *
@@ -4023,9 +3997,9 @@
                 )
             );
         previousTouchX =
-            e.clientX;
+            currentLogicalX;
         previousTouchY =
-            e.clientY;
+            currentLogicalY;
     }
     function handleRightScreenEnd(e) {
         if (!isCameraDragging) return;
@@ -4427,9 +4401,21 @@
     window.addEventListener(
         'resize',
         () => {
+            updateForceRotateClass();
             camera.aspect =
-                window.innerWidth /
-                window.innerHeight;
+                getLogicalWidth() /
+                getLogicalHeight();
+            camera.updateProjectionMatrix();
+            applyPixelatedRendererSize();
+        }
+    );
+    window.addEventListener(
+        'orientationchange',
+        () => {
+            updateForceRotateClass();
+            camera.aspect =
+                getLogicalWidth() /
+                getLogicalHeight();
             camera.updateProjectionMatrix();
             applyPixelatedRendererSize();
         }
