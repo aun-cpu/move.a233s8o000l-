@@ -208,7 +208,12 @@
         0.1,
         1000
     );
-    const renderer = new THREE.WebGLRenderer({ antialias: false });
+    const renderer = new THREE.WebGLRenderer({
+        antialias: false,
+        powerPreference: 'default',
+        failIfMajorPerformanceCaveat: false,
+        preserveDrawingBuffer: false
+    });
     // ============================================================
     // ピクセルアート風レンダリング
     // ============================================================
@@ -238,6 +243,12 @@
     renderer.toneMappingExposure = 0.95;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // 端末の最大値をそのまま使うとテクスチャのGPUメモリ消費が
+    // 跳ね上がりモバイルでクラッシュしやすくなるため、上限を設ける
+    const cappedAnisotropy = Math.min(
+        4,
+        renderer.capabilities.getMaxAnisotropy()
+    );
     document.getElementById('canvas-container').appendChild(renderer.domElement);
     // ============================================================
     // ズーム無効化（ダブルタップ／ピンチ）
@@ -315,6 +326,11 @@
         'webglcontextrestored',
         function () {
             isRendererContextLost = false;
+            // 停止していた間の経過時間をリセットし、
+            // 復帰直後に大きなdeltaで動きが飛ぶのを防ぐ
+            if (typeof clock !== 'undefined') {
+                clock.getDelta();
+            }
             console.info(
                 'WebGLコンテキストが復帰しました。'
             );
@@ -328,8 +344,8 @@
     const dirLight = new THREE.DirectionalLight(0xffffff, 2.6);
     dirLight.position.set(5, 10, 7.5);
     dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 2048;
-    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.mapSize.width = 1024;
+    dirLight.shadow.mapSize.height = 1024;
     dirLight.shadow.camera.near = 0.5;
     dirLight.shadow.camera.far = 50;
     dirLight.shadow.camera.left = -15;
@@ -604,35 +620,46 @@
     // ============================================================
     // bg.glb
     // ============================================================
+    // モデルを同時並行でダウンロード・デコードすると、モバイル端末で
+    // メモリ／GPUリソースが逼迫してクラッシュしやすくなるため、
+    // bg → ct1 → mg の順に1つずつ読み込む。
     loader.load(
         './bg.glb',
         function (gltf) {
-            bgModel = gltf.scene;
-            bgModel.scale.set(2, 2, 2);
-            bgModel.traverse((child) => {
-                if (!child.isMesh) return;
-                const oldMaterial = child.material;
-                const materials =
-                    Array.isArray(oldMaterial)
-                        ? oldMaterial
-                        : [oldMaterial];
-                const newMaterials = materials.map((material) => {
-                    return new THREE.MeshBasicMaterial({
-                        wireframe: true,
-                        transparent: material.transparent,
-                        opacity: material.opacity,
-                        map: material.map || null,
-                        vertexColors: material.vertexColors
+            try {
+                bgModel = gltf.scene;
+                bgModel.scale.set(2, 2, 2);
+                bgModel.traverse((child) => {
+                    if (!child.isMesh) return;
+                    const oldMaterial = child.material;
+                    const materials =
+                        Array.isArray(oldMaterial)
+                            ? oldMaterial
+                            : [oldMaterial];
+                    const newMaterials = materials.map((material) => {
+                        return new THREE.MeshBasicMaterial({
+                            wireframe: true,
+                            transparent: material.transparent,
+                            opacity: material.opacity,
+                            map: material.map || null,
+                            vertexColors: material.vertexColors
+                        });
                     });
+                    child.material =
+                        Array.isArray(oldMaterial)
+                            ? newMaterials
+                            : newMaterials[0];
+                    child.receiveShadow = true;
                 });
-                child.material =
-                    Array.isArray(oldMaterial)
-                        ? newMaterials
-                        : newMaterials[0];
-                child.receiveShadow = true;
-            });
-            scene.add(bgModel);
+                scene.add(bgModel);
+            } catch (setupError) {
+                console.error(
+                    'bg.glb のセットアップエラー:',
+                    setupError
+                );
+            }
             markAssetLoaded();
+            loadCt1Model();
         },
         undefined,
         function (error) {
@@ -641,11 +668,13 @@
                 error
             );
             markAssetLoaded();
+            loadCt1Model();
         }
     );
     // ============================================================
-    // ct1.glb
+    // ct1.glb（bg.glbの読み込み完了後に開始する）
     // ============================================================
+    function loadCt1Model() {
     loader.load(
         './ct1.glb',
         function (gltf) {
@@ -669,7 +698,7 @@
                         material.map.encoding =
                             THREE.sRGBEncoding;
                         material.map.anisotropy =
-                            renderer.capabilities.getMaxAnisotropy();
+                            cappedAnisotropy;
                         material.map.needsUpdate = true;
                     }
                     material.needsUpdate = true;
@@ -740,7 +769,7 @@
                                 material.map.encoding =
                                     THREE.sRGBEncoding;
                                 material.map.anisotropy =
-                                    renderer.capabilities.getMaxAnisotropy();
+                                    cappedAnisotropy;
                                 material.map.needsUpdate = true;
                             }
                             material.needsUpdate = true;
@@ -1021,6 +1050,7 @@
             markAssetLoaded();
         }
     );
+    }
     // ============================================================
     // ct1 アニメーション切り替え
     // ============================================================
@@ -4067,6 +4097,12 @@
         requestAnimationFrame(
             animate
         );
+        // WebGLコンテキストが失われている間は描画・更新を行わず、
+        // 復帰を待つだけにする（失われたコンテキストへの連続アクセスは
+        // 一部端末でクラッシュや無限エラーループの原因になる）
+        if (isRendererContextLost) {
+            return;
+        }
         const delta =
             clock.getDelta();
         // ct1操作
