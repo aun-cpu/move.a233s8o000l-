@@ -997,6 +997,7 @@ const liTargetPosition = new THREE.Vector3();
                         './li.glb',
                         function (liGltf) {
                             liModel = liGltf.scene;
+        liModel.scale.set(2, 2, 2);
                             liModel.traverse((child) => {
                                 if (!child.isMesh) return;
                                 child.castShadow = true;
@@ -1407,6 +1408,7 @@ const liTargetPosition = new THREE.Vector3();
         liTargetPosition
             .copy(mgModel.position)
             .addScaledVector(liForwardVector, -liFollowDistance);
+    liTargetPosition.y += 0.5;
 
         const lerpFactor = Math.min(liFollowLerpSpeed * delta, 1);
         liModel.position.lerp(liTargetPosition, lerpFactor);
