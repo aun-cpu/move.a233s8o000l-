@@ -289,7 +289,7 @@
     // ============================================================
     // 実際の描画解像度を落とし、CSSで画面いっぱいに拡大表示することで
     // ドット絵のような粗いピクセル表現にする。数値が大きいほど粗くなる。
-    const pixelationScale = 1.3;
+    const pixelationScale = 1.7;
     let posterizeCanvas = null;
 let posterizeCtx = null;
 
@@ -547,7 +547,7 @@ function applyPixelatedRendererSize() {
     // ============================================================
     const loadingScreenElement =
         document.getElementById('loading-screen');
-    const totalAssetsToLoad = 3;
+    const totalAssetsToLoad = 4; // bg, ct1, mg, li
     let loadedAssetCount = 0;
     let loadingScreenHidden = false;
     function markAssetLoaded() {
@@ -602,6 +602,15 @@ function applyPixelatedRendererSize() {
     // mg.glb（敵キャラクター）の設定
     // ============================================================
     let mgModel = null;
+
+// ============================================================
+// li.glb（mgに追従するモデル）
+// ============================================================
+let liModel = null;
+const liFollowDistance = 0.5;
+const liFollowLerpSpeed = 8.0;
+const liForwardVector = new THREE.Vector3();
+const liTargetPosition = new THREE.Vector3();
     let mgMixer = null;
     let mgActions = {};
     let currentMgAction = null;
@@ -981,6 +990,37 @@ function applyPixelatedRendererSize() {
                             '[mg] アニメーションがありません。'
                         );
                     }
+                    // ================================================
+                    // li.glb（mgの後方に追従するモデル）
+                    // ================================================
+                    loader.load(
+                        './li.glb',
+                        function (liGltf) {
+                            liModel = liGltf.scene;
+                            liModel.traverse((child) => {
+                                if (!child.isMesh) return;
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                            });
+
+                            if (mgModel) {
+                                liModel.position.copy(mgModel.position);
+                                liModel.quaternion.copy(mgModel.quaternion);
+                            }
+
+                            scene.add(liModel);
+                            markAssetLoaded();
+                        },
+                        undefined,
+                        function (error) {
+                            console.error(
+                                'li.glb の読み込みエラー:',
+                                error
+                            );
+                            markAssetLoaded();
+                        }
+                    );
+
                     markAssetLoaded();
                 },
                 undefined,
@@ -1348,6 +1388,29 @@ function applyPixelatedRendererSize() {
         if (mgActions.walk) {
             setMgAction('walk');
         }
+    }
+
+    // ============================================================
+    // li追従（mgの後方0.5に追従）
+    // ============================================================
+    function updateLiFollow(delta) {
+        if (!liModel || !mgModel) return;
+
+        liForwardVector.set(0, 0, 1);
+        liForwardVector.applyQuaternion(mgModel.quaternion);
+        liForwardVector.y = 0;
+
+        if (liForwardVector.lengthSq() > 0) {
+            liForwardVector.normalize();
+        }
+
+        liTargetPosition
+            .copy(mgModel.position)
+            .addScaledVector(liForwardVector, -liFollowDistance);
+
+        const lerpFactor = Math.min(liFollowLerpSpeed * delta, 1);
+        liModel.position.lerp(liTargetPosition, lerpFactor);
+        liModel.quaternion.slerp(mgModel.quaternion, lerpFactor);
     }
     // ============================================================
     // ct1距離制限
@@ -4241,6 +4304,8 @@ function applyPixelatedRendererSize() {
         updateMgMovement(
             delta
         );
+        // liをmgの後方に追従させる
+        updateLiFollow(delta);
         // ct1ノックバック
         updateCt1Knockback(
             delta
