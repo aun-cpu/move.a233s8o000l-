@@ -213,6 +213,15 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute;">
+    <filter id="pixelArtPosterize" color-interpolation-filters="sRGB">
+        <feComponentTransfer>
+            <feFuncR type="discrete" tableValues="0 0.14 0.28 0.42 0.56 0.7 0.84 1"/>
+            <feFuncG type="discrete" tableValues="0 0.14 0.28 0.42 0.56 0.7 0.84 1"/>
+            <feFuncB type="discrete" tableValues="0 0.14 0.28 0.42 0.56 0.7 0.84 1"/>
+        </feComponentTransfer>
+    </filter>
+</svg>
 <div id="app-stage">
     <div id="loading-screen">
         <img src="./loading.jpg" alt="Loading...">
@@ -311,11 +320,10 @@
         renderer.domElement.style.width = displayWidth + 'px';
         renderer.domElement.style.height = displayHeight + 'px';
 
-        // レンダラーの低解像度バッファと同じサイズに再生成する。
-        createPostProcessPipeline(
-            lowResWidth,
-            lowResHeight
-        );
+        // WebGLの追加レンダーターゲットは使わず、canvasの
+        // CSS/SVGフィルターで色数を減らしてピクセルアート感を追加する。
+        renderer.domElement.style.filter =
+            'url(#pixelArtPosterize) contrast(1.15) saturate(1.3)';
     }
     applyPixelatedRendererSize();
     renderer.outputEncoding = THREE.sRGBEncoding;
@@ -533,145 +541,6 @@
     const atAttackForwardStepDistance = 1.0;
     const rotationSpeed = 10.0;
     const cameraTouchSensitivity = 0.005;
-    // ============================================================
-    // ポストプロセス（ピクセルアート風の色処理）
-    // ============================================================
-    let postProcessRenderTarget = null;
-    let postProcessScene = null;
-    let postProcessCamera = null;
-    let postProcessMaterial = null;
-    let postProcessEnabled = true;
-
-    function createPostProcessPipeline(width, height) {
-        try {
-            if (postProcessRenderTarget) {
-                postProcessRenderTarget.dispose();
-            }
-
-            postProcessRenderTarget = new THREE.WebGLRenderTarget(
-                Math.max(1, width),
-                Math.max(1, height),
-                {
-                    minFilter: THREE.NearestFilter,
-                    magFilter: THREE.NearestFilter,
-                    format: THREE.RGBAFormat
-                }
-            );
-
-            if (!postProcessScene) {
-                postProcessScene = new THREE.Scene();
-                postProcessCamera = new THREE.OrthographicCamera(
-                    -1, 1, 1, -1, 0, 1
-                );
-
-                postProcessMaterial = new THREE.ShaderMaterial({
-                    uniforms: {
-                        tDiffuse: { value: null },
-                        uPosterizeLevels: { value: 6.0 },
-                        uContrast: { value: 1.18 },
-                        uSaturation: { value: 1.25 },
-                        uDitherStrength: { value: 0.035 }
-                    },
-                    vertexShader: `
-                        varying vec2 vUv;
-                        void main() {
-                            vUv = uv;
-                            gl_Position = vec4(position.xy, 0.0, 1.0);
-                        }
-                    `,
-                    fragmentShader: `
-                        uniform sampler2D tDiffuse;
-                        uniform float uPosterizeLevels;
-                        uniform float uContrast;
-                        uniform float uSaturation;
-                        uniform float uDitherStrength;
-                        varying vec2 vUv;
-
-                        // 動的なmat4インデックスを使わない安全な疑似ディザ。
-                        float ditherPattern(vec2 fragCoord) {
-                            vec2 cell = mod(fragCoord, 4.0);
-                            float n = cell.x + cell.y * 4.0;
-                            float h = fract(
-                                sin(n * 12.9898) * 43758.5453
-                            );
-                            return h;
-                        }
-
-                        void main() {
-                            vec4 texel = texture2D(tDiffuse, vUv);
-                            vec3 color = texel.rgb;
-
-                            color =
-                                (color - 0.5) *
-                                uContrast +
-                                0.5;
-
-                            float luma =
-                                dot(
-                                    color,
-                                    vec3(0.299, 0.587, 0.114)
-                                );
-                            color =
-                                mix(
-                                    vec3(luma),
-                                    color,
-                                    uSaturation
-                                );
-
-                            float dither =
-                                (
-                                    ditherPattern(
-                                        gl_FragCoord.xy
-                                    ) - 0.5
-                                ) *
-                                uDitherStrength;
-                            color += dither;
-
-                            color =
-                                floor(
-                                    color *
-                                    uPosterizeLevels +
-                                    0.5
-                                ) /
-                                uPosterizeLevels;
-
-                            gl_FragColor =
-                                vec4(
-                                    clamp(
-                                        color,
-                                        0.0,
-                                        1.0
-                                    ),
-                                    texel.a
-                                );
-                        }
-                    `,
-                    depthTest: false,
-                    depthWrite: false
-                });
-
-                const quad = new THREE.Mesh(
-                    new THREE.PlaneGeometry(2, 2),
-                    postProcessMaterial
-                );
-                postProcessScene.add(quad);
-            }
-
-            postProcessEnabled = true;
-        } catch (postProcessError) {
-            console.error(
-                'ポストプロセスの初期化に失敗しました。通常描画にフォールバックします:',
-                postProcessError
-            );
-            postProcessEnabled = false;
-
-            if (postProcessRenderTarget) {
-                postProcessRenderTarget.dispose();
-                postProcessRenderTarget = null;
-            }
-        }
-    }
-
     // ============================================================
     // GLTF Loader
     // ============================================================
@@ -4568,50 +4437,12 @@
         applyCameraShake(
             delta
         );
-        if (
-            postProcessEnabled &&
-            postProcessRenderTarget &&
-            postProcessScene &&
-            postProcessCamera &&
-            postProcessMaterial
-        ) {
-            try {
-                renderer.setRenderTarget(
-                    postProcessRenderTarget
-                );
-                renderer.render(
-                    scene,
-                    camera
-                );
-
-                renderer.setRenderTarget(null);
-                postProcessMaterial.uniforms
-                    .tDiffuse.value =
-                    postProcessRenderTarget.texture;
-
-                renderer.render(
-                    postProcessScene,
-                    postProcessCamera
-                );
-            } catch (renderError) {
-                console.error(
-                    'ポストプロセス描画でエラーが発生しました。以後は通常描画にフォールバックします:',
-                    renderError
-                );
-                postProcessEnabled = false;
-                renderer.setRenderTarget(null);
-                renderer.render(
-                    scene,
-                    camera
-                );
-            }
-        } else {
-            renderer.setRenderTarget(null);
-            renderer.render(
-                scene,
-                camera
-            );
-        }
+        // 追加のWebGLポストプロセスは使わず、通常描画を1回だけ行う。
+        renderer.setRenderTarget(null);
+        renderer.render(
+            scene,
+            camera
+        );
     }
     animate();
     // ============================================================
